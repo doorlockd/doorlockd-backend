@@ -11,9 +11,5 @@ __pycache__/
 SECRET.key
 db.sqlite3
 
-
-# lock-clinet/app.py
-config.ini
-
 # for test env.
 rsync.sh
