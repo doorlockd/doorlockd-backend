@@ -6,7 +6,7 @@ from .models import *
 from django.utils.html import format_html
 from django.urls import reverse
 from django import forms
-from django.db.models import Count
+from django.db.models import Count, Max
 from django.db.models.functions import Lower
 from django.forms import Textarea
 
@@ -107,8 +107,11 @@ class PersonAdmin(admin.ModelAdmin):
 
     def get_queryset(self, request):
         queryset = super(PersonAdmin, self).get_queryset(request)
-        return queryset.annotate(key_count=Count("key", distinct=True)).annotate(
-            group_count=Count("personsgroup", distinct=True)
+        return queryset.annotate(
+            key_count=Count("key", distinct=True),
+            group_count=Count("personsgroup", distinct=True),
+            last_seen_start=Max("key__logkeylastseen__last_seen_start"),
+            last_seen_end=Max("key__logkeylastseen__last_seen_end"),
         )
 
     def get_urls(self):

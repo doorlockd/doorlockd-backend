@@ -7,6 +7,7 @@ from mimetypes import init
 from sre_compile import isstring
 from django.db import models
 from django.db.models import F, Q
+from django.db.models import Max
 from django.core.exceptions import ValidationError
 from django.utils.functional import cached_property
 
@@ -89,12 +90,6 @@ class Person(models.Model):
     def get_absolute_url(self):
         return "/doorlockdb/details/person/%i" % self.id
 
-    def my_keys(self):
-        return Key.objects.filter(owner=self)
-
-    def num_keys(self):
-        return len(self.my_keys())
-
     def __str__(self):
         return f"{self.name}"
         return f"{self.__class__.__name__}(name={self.name}, email={self.email})"
@@ -106,32 +101,17 @@ class Person(models.Model):
         # is self._cached_lock_list set ?
         return checkAnyOutOfSync(self, self._cached_lock_list)
 
-    # class Meta:
-    #     unique_together = ('email', 'name',)
-
     @cached_property
     def last_seen_start(self):
-        last_seen_start = None
-        for k in self.key_set.all():
-            if (
-                last_seen_start is None
-                or k.last_seen_start is not None
-                and k.last_seen_start > last_seen_start
-            ):
-                last_seen_start = k.last_seen_start
-        return last_seen_start
+        return self.key_set.aggregate(
+            last_seen_start=Max("logkeylastseen__last_seen_start")
+        )["last_seen_start"]
 
     @cached_property
     def last_seen_end(self):
-        last_seen_end = None
-        for k in self.key_set.all():
-            if (
-                last_seen_end is None
-                or k.last_seen_end is not None
-                and k.last_seen_end > last_seen_end
-            ):
-                last_seen_end = k.last_seen_end
-        return last_seen_end
+        return self.key_set.aggregate(
+            last_seen_end=Max("logkeylastseen__last_seen_end")
+        )["last_seen_end"]
 
 
 class PersonGroup(models.Model):
@@ -226,7 +206,6 @@ class Key(models.Model):
             return self.logkeylastseen.last_seen_start
         except Key.logkeylastseen.RelatedObjectDoesNotExist:
             return None
-        # return("today ;-)")
 
     @cached_property
     def last_seen_end(self):
@@ -234,7 +213,6 @@ class Key(models.Model):
             return self.logkeylastseen.last_seen_end
         except Key.logkeylastseen.RelatedObjectDoesNotExist:
             return None
-        # return("today ;-)")
 
     def __str__(self):
         return f"{self.hwid}"
