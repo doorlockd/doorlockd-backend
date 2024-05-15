@@ -229,14 +229,23 @@ class LogUnknownKeyAdmin(admin.ModelAdmin):
 
     def get_queryset(self, request):
         queryset = super(LogUnknownKeyAdmin, self).get_queryset(request)
+
+        #
+        # Prefetch my own list of hwids who already exist, used for 'add_to_person'
+        #
+        self.hwids_already_exist = Key.objects.values_list("hwid", flat=True).filter(
+            hwid__in=LogUnknownKey.objects.values_list("hwid", flat=True)
+        )
+
         return queryset.prefetch_related("lock")
 
     #
-    # logUnknownKeys -> http://localhost:8000/admin/doorlockdb/key/add/?unknownkey=123
+    # 'add_to_person': show link like "/admin/doorlockdb/key/add/?unknownkey=123", or "key already exist"
     #
     @admin.display
     def add_to_person(self, obj):
-        if bool(Key.objects.filter(hwid=obj.hwid)):
+        # only show link for hwid who not already exist, will look up in my own prefetched list
+        if obj.hwid in self.hwids_already_exist:
             return "key already exist"
         else:
             url = reverse("admin:doorlockdb_key_add") + f"?unknownkey={obj.hwid}"
