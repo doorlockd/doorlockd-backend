@@ -227,6 +227,10 @@ class LogUnknownKeyAdmin(admin.ModelAdmin):
     )
     ordering = ("-last_seen",)
 
+    def get_queryset(self, request):
+        queryset = super(LogUnknownKeyAdmin, self).get_queryset(request)
+        return queryset.prefetch_related("lock")
+
     #
     # logUnknownKeys -> http://localhost:8000/admin/doorlockdb/key/add/?unknownkey=123
     #
@@ -253,6 +257,10 @@ class LogKeyLastSeenAdmin(admin.ModelAdmin):
     )
     readonly_fields = list_display
     ordering = ("-last_seen_start", "-last_seen_end")
+
+    def get_queryset(self, request):
+        queryset = super(LogKeyLastSeenAdmin, self).get_queryset(request)
+        return queryset.prefetch_related("lock")
 
     @admin.display(ordering="key__owner")
     def owner(self, obj):
