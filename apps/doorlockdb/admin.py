@@ -312,6 +312,13 @@ class AccesGroupAdmin(admin.ModelAdmin):
     filter_horizontal = ("locks",)
 
 
+@admin.action(description="Check Sync status")
+def check_sync_status(modeladmin, request, queryset):
+    # run lock.check_sync()
+    for slk in queryset:
+        slk.lock.check_sync()
+
+
 class SyncLockKeysAdmin(admin.ModelAdmin):
     list_display = (
         "lock",
@@ -332,6 +339,7 @@ class SyncLockKeysAdmin(admin.ModelAdmin):
         "last_log_keys",
         "keys_json",
     )
+    actions = (check_sync_status,)
 
     def has_add_permission(self, request, obj=None):
         return False

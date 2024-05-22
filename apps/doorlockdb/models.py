@@ -671,7 +671,7 @@ class SyncLockKeys(models.Model):
     last_log_keys = models.DateTimeField(blank=True, null=True, default=None)
 
     keys_json = models.TextField(default="{}")  # default json('{}')
-    synchronized = models.BooleanField(default=False)
+    synchronized = models.BooleanField(default=False, null=True)
 
     def compare_hash_and_sync(self, lock_keys_hash):
 
@@ -813,7 +813,11 @@ def post_update_check_sync(sender, **kwargs):
     if sender is Lock:
         print(f"SIGNAL 1 lock: {sender}", kwargs)
         lock = kwargs.get("instance")
-        lock.check_sync()
+        # to save SQLqueries we no longer do lock.check_sync(),
+        # we now only mark this one as sync status unknown (None)
+        synclockkey, is_created = SyncLockKeys.objects.get_or_create(lock=lock)
+        synclockkey.synchronized = None
+        synclockkey.save()
 
     # if(sender in [ Key, Group, Person ]):
     elif type(kwargs.get("instance")) in [
@@ -828,9 +832,9 @@ def post_update_check_sync(sender, **kwargs):
             return
 
         print(f"SIGNAL match: {sender}", kwargs)
-        # run check_sync for all locks:
-        for lock in Lock.objects.all():
-            lock.check_sync()
+        # to save SQLqueries we no longer do lock.check_sync() for lock in Lock.objects.all(),
+        # we now only mark all locks as sync status unknown:
+        SyncLockKeys.objects.update(synchronized=None)
 
 
 def post_delete_check_sync(sender, **kwargs):
@@ -855,9 +859,9 @@ def post_delete_check_sync(sender, **kwargs):
             return
 
         print(f"SIGNAL match: {sender}", kwargs)
-        # run check_sync for all locks:
-        for lock in Lock.objects.all():
-            lock.check_sync()
+        # to save SQLqueries we no longer do lock.check_sync() for lock in Lock.objects.all(),
+        # we now only mark all locks as sync status unknown:
+        SyncLockKeys.objects.update(synchronized=None)
 
 
 post_save.connect(post_update_check_sync)
