@@ -106,7 +106,7 @@ class PersonAdmin(admin.ModelAdmin):
         return (Lower("name"),)
 
     def get_queryset(self, request):
-        queryset = super(PersonAdmin, self).get_queryset(request)
+        queryset = super().get_queryset(request)
         return queryset.annotate(
             key_count=Count("key", distinct=True),
             group_count=Count("personsgroup", distinct=True),
@@ -157,7 +157,7 @@ class PersonGroupAdmin(admin.ModelAdmin):
     inlines = (PersonGroupMemberInline,)
 
     def get_queryset(self, request):
-        queryset = super(PersonGroupAdmin, self).get_queryset(request)
+        queryset = super().get_queryset(request)
         return queryset.annotate(persons_count=Count("persons"))
 
     @admin.display(ordering="persons_count", description="#persons")
@@ -206,14 +206,12 @@ class KeyAdmin(admin.ModelAdmin):
             # unknownkeys = [(kwargs['obj'].hwid, kwargs['obj'].hwid )]
             context["adminform"].form.fields["hwid"].widget.attrs["readonly"] = True
 
-        return super(KeyAdmin, self).render_change_form(
-            request, context, *args, **kwargs
-        )
+        return super().render_change_form(request, context, *args, **kwargs)
 
     # idea: limited to persons with equal groups you are allowed to edit.
     # def render_change_form(self, request, context, *args, **kwargs):
     #     context['adminform'].form.fields['owner'].queryset = Person.objects.filter(name__icontains='D')
-    #     return super(KeyAdmin, self).render_change_form(request, context, *args, **kwargs)
+    #     return super().render_change_form(request, context, *args, **kwargs)
 
 
 class LogUnknownKeyAdmin(admin.ModelAdmin):
@@ -228,7 +226,7 @@ class LogUnknownKeyAdmin(admin.ModelAdmin):
     ordering = ("-last_seen",)
 
     def get_queryset(self, request):
-        queryset = super(LogUnknownKeyAdmin, self).get_queryset(request)
+        queryset = super().get_queryset(request)
 
         #
         # Prefetch my own list of hwids who already exist, used for 'add_to_person'
@@ -268,7 +266,7 @@ class LogKeyLastSeenAdmin(admin.ModelAdmin):
     ordering = ("-last_seen_start", "-last_seen_end")
 
     def get_queryset(self, request):
-        queryset = super(LogKeyLastSeenAdmin, self).get_queryset(request)
+        queryset = super().get_queryset(request)
         return queryset.prefetch_related("lock")
 
     @admin.display(ordering="key__owner")
