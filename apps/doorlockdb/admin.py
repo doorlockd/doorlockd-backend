@@ -7,6 +7,7 @@ from django.utils.html import format_html
 from django.urls import reverse
 from django import forms
 from django.db.models import Count, Max
+from django.db.models import Exists, OuterRef
 from django.db.models.functions import Lower
 from django.forms import Textarea
 
@@ -227,23 +228,17 @@ class LogUnknownKeyAdmin(admin.ModelAdmin):
 
     def get_queryset(self, request):
         queryset = super().get_queryset(request)
-
-        #
-        # Prefetch my own list of hwids who already exist, used for 'add_to_person'
-        #
-        self.hwids_already_exist = Key.objects.values_list("hwid", flat=True).filter(
-            hwid__in=LogUnknownKey.objects.values_list("hwid", flat=True)
+        return queryset.annotate(
+            key_already_exists=Exists(Key.objects.filter(hwid=OuterRef("hwid")))
         )
-
-        return queryset.prefetch_related("lock")
 
     #
     # 'add_to_person': show link like "/admin/doorlockdb/key/add/?unknownkey=123", or "key already exist"
     #
     @admin.display
     def add_to_person(self, obj):
-        # only show link for hwid who not already exist, will look up in my own prefetched list
-        if obj.hwid in self.hwids_already_exist:
+        # only show link for hwid who not already exist
+        if obj.key_already_exists:
             return "key already exist"
         else:
             url = reverse("admin:doorlockdb_key_add") + f"?unknownkey={obj.hwid}"
