@@ -193,7 +193,7 @@ class Key(models.Model):
     )
     description = models.CharField(
         max_length=200,
-        help_text='Enter a meaning full description. example="NS OV chipkaart t.h.t. 02-2027"',
+        help_text='Enter a meaningful description. example="NS OV chipkaart t.h.t. 02-2027"',
     )
     is_enabled = models.BooleanField(default=True)
 

@@ -173,19 +173,19 @@ class KeyAdmin(admin.ModelAdmin):
 
     # idea: select form for hwid , from UnknownKeys.
     def render_change_form(self, request, context, *args, **kwargs):
-        print("FORMFILED:", context["adminform"].form.fields["hwid"])
+        # this field is readonly, unless we overwrite it with our ChoiceField
+        context["adminform"].form.fields["hwid"].widget.attrs["readonly"] = True
 
         # link from UnknonwnKey list
         if request.GET.get("unknownkey"):
             context["adminform"].form.fields["hwid"].widget.attrs["value"] = (
                 request.GET.get("unknownkey")
             )
-            context["adminform"].form.fields["hwid"].widget.attrs["readonly"] = True
 
         # browsing to "new" Key
         elif kwargs["obj"] is None:
             # obj is None -> New
-            unknownkeys = [("NOT-SET", "Recent found keys:")]
+            unknownkeys = [(None, "Recent found keys:")]
             for k in LogUnknownKey.objects.order_by("-last_seen"):
                 unknownkeys.append(
                     (
@@ -195,17 +195,15 @@ class KeyAdmin(admin.ModelAdmin):
                 )
 
             context["adminform"].form.fields["hwid"] = forms.ChoiceField(
-                help_text="A valid hwid, please.",
+                help_text="Select the correct hwid, please.",
                 choices=unknownkeys,
                 initial="0",
                 required=True,
             )
 
-        # browsing to Change key
-        else:
-            # obj is not None -> Change
-            # unknownkeys = [(kwargs['obj'].hwid, kwargs['obj'].hwid )]
-            context["adminform"].form.fields["hwid"].widget.attrs["readonly"] = True
+            # is working but could be better:
+            # when the form is rendered with validation errors, the "hwid" ChoiceField will be back overwritten with the CharField.
+            # I wish to fix this but doesn't know how.
 
         return super().render_change_form(request, context, *args, **kwargs)
 
