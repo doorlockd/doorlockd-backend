@@ -11,6 +11,9 @@ from django.db.models import Max
 from django.core.exceptions import ValidationError
 from django.utils.functional import cached_property
 
+# for AuthWithByClientSSL: unquote HTTP header.
+from urllib.parse import unquote
+
 import json
 import datetime
 import hashlib
@@ -386,26 +389,30 @@ class Lock(models.Model):
             sync.synchronized = False
             sync.save()
 
+    @staticmethod
+    def cleanup_certificate(certificate):
+        # fix empty -> None, only validate when set.
+        if certificate == "" or certificate is None:
+            return None
+
+        # replace \r\n with \n , and remove all other tabs and spaces (like how nginx shows it)
+        certificate = certificate.replace("\r\n", "\n").strip("\t ").rstrip()
+
+        if (
+            certificate == ""
+            or certificate.splitlines()[0] != "-----BEGIN CERTIFICATE-----"
+            or certificate.splitlines()[-1] != "-----END CERTIFICATE-----"
+        ):
+            raise ValidationError(
+                {
+                    "certificate": "Must begin with '-----BEGIN CERTIFICATE-----' and end with '-----END CERTIFICATE-----'"
+                }
+            )
+
+        return certificate
+
     def clean(self):
-        # fix empty -> None
-        if self.certificate == "":
-            self.certificate = None
-
-        # only validate when set.
-        if self.certificate is not None:
-            # replace \r\n with \n (like how nginx shows it)
-            self.certificate = self.certificate.replace("\r\n", "\n").strip()
-
-            if (
-                self.certificate == ""
-                or self.certificate.splitlines()[0] != "-----BEGIN CERTIFICATE-----"
-                or self.certificate.splitlines()[-1] != "-----END CERTIFICATE-----"
-            ):
-                raise ValidationError(
-                    {
-                        "certificate": "Must begin with '-----BEGIN CERTIFICATE-----' and end with '-----END CERTIFICATE-----'"
-                    }
-                )
+        self.certificate = Lock.cleanup_certificate(self.certificate)
 
     # make sure the clean() method is called on each save()
     def save(self, *args, **kwargs):
@@ -477,10 +484,12 @@ class Helpers:
     @classmethod
     def AuthWithByClientSSL(cls, request):
         try:
-            client_cert = request.META["HTTP_X_SSL_RAW_CERT"]
+            client_cert = Lock.cleanup_certificate(
+                unquote(request.META["HTTP_X_SSL_CERT"])
+            )
         except:
             raise cls.ErrorClientSSLCert(
-                "no client certificate found (HTTP_X_SSL_RAW_CERT missing)"
+                "no client certificate found (HTTP_X_SSL_CERT missing)"
             )
 
         try:
@@ -492,7 +501,9 @@ class Helpers:
             return lock
 
         except Lock.DoesNotExist as e:
-            raise cls.ErrorClientSSLCert(f"Client SSL Certificate is unkown ({e})")
+            raise cls.ErrorClientSSLCert(
+                f"Client SSL Certificate is unkown ({e})\nCertificate: '{client_cert}'."
+            )
 
     @classmethod
     def exportAccessRuleset(cls, accessruleset: AccessRuleset):
