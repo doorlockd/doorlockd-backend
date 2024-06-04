@@ -22,7 +22,21 @@ key_set: {{ person.key_set.all }}
 
 <h3>Groups:</h3>
 {% for group in person.personsgroup.all %}
-<li>{{ group.name }}, {{ group.is_enabled }}, {{ group.description }} [ {% for lock in group.access.all %} {{ lock.name }} {% endfor %} ] </li>
+<li>{{ group.name }}, {{ group.is_enabled }}, {{ group.description }}
+	<ul>
+		{% for access_group in group.access_groups.all %}
+		<li><font color="grey">{{ access_group }}</font><br>
+
+
+			[{% for lock in access_group.locks.all %} {{ lock }}, {% endfor %}]: <br>
+
+			{% for access_rule in access_group.rules.accessrule_set.all %}
+			{{ access_rule }} <br>
+			{% endfor %}
+		</li>
+		{% endfor %}
+	</ul>
+</li>
 {% endfor %}
 
 

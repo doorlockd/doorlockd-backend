@@ -600,7 +600,7 @@ class Helpers:
         r["PersonGroup"] = PersonGroup.objects.filter(
             access_groups__in=r["AccessGroup"]
         )
-        r["Person"] = Person.objects.filter(persongroup__in=r["PersonGroup"])
+        r["Person"] = Person.objects.filter(personsgroup__in=r["PersonGroup"])
         r["Key"] = Key.objects.filter(owner__in=r["Person"])
 
         # # get orphaned keys
