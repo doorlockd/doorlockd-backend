@@ -80,7 +80,7 @@ class LockAdmin(admin.ModelAdmin):
     formfield_overrides = {
         models.TextField: {
             "widget": Textarea(
-                attrs={"rows": 20, "cols": 64, "style": "font-family: monospace"}
+                attrs={"rows": 22, "cols": 64, "style": "font-family: monospace"}
             )
         },
     }

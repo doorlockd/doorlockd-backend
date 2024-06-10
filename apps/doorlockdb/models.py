@@ -396,7 +396,9 @@ class Lock(models.Model):
             return None
 
         # replace \r\n with \n , and remove all other tabs and spaces (like how nginx shows it)
-        certificate = certificate.replace("\r\n", "\n").strip("\t ").rstrip()
+        certificate = (
+            certificate.replace("\r\n", "\n").replace("\t ", "").strip() + "\n"
+        )
 
         if (
             certificate == ""
