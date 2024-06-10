@@ -85,6 +85,9 @@ class LockAdmin(admin.ModelAdmin):
         },
     }
 
+    def view_on_site(self, obj):
+        return reverse("details_lock", args=[obj.pk])
+
 
 # class PersonForm(forms.ModelForm):
 #     class Meta:
@@ -130,6 +133,9 @@ class PersonAdmin(admin.ModelAdmin):
         add_person_to_group,
         remove_person_from_group,
     )
+
+    def view_on_site(self, obj):
+        return reverse("details_person", args=[obj.pk])
 
     def get_ordering(self, request):
         return (Lower("name"),)

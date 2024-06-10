@@ -1,7 +1,8 @@
 <h1>
 {{ lock }}
 </h1>
-<code></code><a href="{% url 'details_lock' lock.id %}">link {{ lock }}</a></code>
+<code>details: <a href="{% url 'details_lock' lock.id %}">{{ lock }}</a></code><br>
+<code>admin:   <a href="{% url 'admin:doorlockdb_lock_change' lock.id %}">{{ lock }}</a></code><br>
 
 
 <pre>

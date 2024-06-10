@@ -90,9 +90,6 @@ class Person(models.Model):
     # created_at = models.DateTimeField(auto_now_add=True)
     # updated_at = models.DateTimeField(auto_now=True)
 
-    def get_absolute_url(self):
-        return "/doorlockdb/details/person/%i" % self.id
-
     def __str__(self):
         return f"{self.name}"
         return f"{self.__class__.__name__}(name={self.name}, email={self.email})"
@@ -329,9 +326,6 @@ class Lock(models.Model):
         blank=True,
         help_text=f"Paste client certitificate here (including '-----BEGIN CERTIFICATE-----' and '-----END CERTIFICATE-----').<br>\n<br>\nOn the client configure this server server Fingerprint. (hint: restart django after server ssl certificate is changed). <br>\n<code>server_ssl_fingerprint='{getServerSSLFingerprint()}'</code>",
     )
-
-    def get_absolute_url(self):
-        return "/doorlockdb/details/lock/%i" % self.id
 
     def __str__(self):
         return f"{self.name}"

@@ -1,7 +1,24 @@
+<html>
+<head>
+
+<style>
+.stripe {
+    color: grey;
+    text-decoration: line-through;
+}
+
+.grey {
+    color: grey;
+}
+
+</style>
+</head>
+<body>
 <h1>
 {{ person }}
 </h1>
-<code></code><a href="{% url 'details_person' person.id %}">link {{ person }}</a></code>
+<code>details: <a href="{% url 'details_person' person.id %}">{{ person }}</a></code><br>
+<code>admin:   <a href="{% url 'admin:doorlockdb_person_change' person.id %}">{{ person }}</a></code><br>
 
 
 <pre>
@@ -25,10 +42,10 @@ key_set: {{ person.key_set.all }}
 <li>{{ group.name }}, {{ group.is_enabled }}, {{ group.description }}
 	<ul>
 		{% for access_group in group.access_groups.all %}
-		<li><font color="grey">{{ access_group }}</font><br>
+		<li><span class="grey">{{ access_group }}</span><br>
 
 
-			[{% for lock in access_group.locks.all %} {{ lock }}, {% endfor %}]: <br>
+			[{% for lock in access_group.locks.all %} <span class="{% if not lock.is_enabled %} stripe {%endif%}">{{ lock }}</span>, {% endfor %}]: <br>
 
 			{% for access_rule in access_group.rules.accessrule_set.all %}
 			{{ access_rule }} <br>
@@ -58,3 +75,5 @@ key_set: {{ person.key_set.all }}
 <br >
 
 <code> <i>It is now {% now "Y-m-d H:m:s" %}</i></code>
+</body>
+</html>
