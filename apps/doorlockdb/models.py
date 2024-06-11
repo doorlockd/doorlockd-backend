@@ -162,13 +162,13 @@ class AccessRule(models.Model):
     before = models.DateTimeField(blank=True, null=True, default=None)
 
     # weekdays [0,1,2,3,4,5,6]
-    weekdays_monday = models.BooleanField(default=True)
-    weekdays_tuesday = models.BooleanField(default=True)
-    weekdays_wednesday = models.BooleanField(default=True)
-    weekdays_thursday = models.BooleanField(default=True)
-    weekdays_friday = models.BooleanField(default=True)
-    weekdays_saturday = models.BooleanField(default=True)
-    weekdays_sunday = models.BooleanField(default=True)
+    weekdays_monday = models.BooleanField(default=False)
+    weekdays_tuesday = models.BooleanField(default=False)
+    weekdays_wednesday = models.BooleanField(default=False)
+    weekdays_thursday = models.BooleanField(default=False)
+    weekdays_friday = models.BooleanField(default=False)
+    weekdays_saturday = models.BooleanField(default=False)
+    weekdays_sunday = models.BooleanField(default=False)
 
     # self.timeslot = timeslot
     time_start = models.TimeField(blank=True, null=True, default=None)
