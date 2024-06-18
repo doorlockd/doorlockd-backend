@@ -7,6 +7,7 @@ from .models import *
 
 
 from ninja import NinjaAPI, Schema
+from pydantic import PositiveInt
 from typing import List
 
 from django.core import serializers
@@ -104,7 +105,7 @@ def api_lock_sync_keys(request, input_data: SyncKeysInputSchema):
 class LogUnknownKeySchema(Schema):
     key: str
     timestamp: str  # 'datetime.datetime.fromtimestamp(datetime.datetime.utcnow().timestamp()).isoformat()'
-    count: int
+    count: PositiveInt
 
 
 class LogUnknownKeysOutputSchema(Schema):
@@ -147,7 +148,7 @@ class LogKeysLastSeenSchema(Schema):
     key: str
     timestamp_begin: str  # 'datetime.datetime.fromtimestamp(datetime.datetime.utcnow().timestamp()).isoformat()'
     timestamp_end: str  # 'datetime.datetime.fromtimestamp(datetime.datetime.utcnow().timestamp()).isoformat()'
-    count: int
+    count: PositiveInt
 
 
 class LogKeysLastSeenOutputSchema(Schema):
