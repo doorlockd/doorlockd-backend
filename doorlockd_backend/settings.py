@@ -45,7 +45,6 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "apps.doorlockdb",
-    "django_tables2",
 ]
 
 MIDDLEWARE = [
