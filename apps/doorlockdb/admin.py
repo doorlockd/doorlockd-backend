@@ -60,7 +60,7 @@ def linkify(field_name):
 class KeysInline(admin.TabularInline):
     model = Key
     max_num = 0
-    readonly_fields = ("hwid",)
+    exclude = ("hwid",)
 
 
 @admin.action(description="Enable")
@@ -202,7 +202,8 @@ class PersonGroupAdmin(admin.ModelAdmin):
 
 class KeyAdmin(admin.ModelAdmin):
     list_display = (
-        "hwid",
+        "__str__",
+        "description",
         linkify("owner"),
         "is_enabled",
     )
@@ -253,10 +254,11 @@ class KeyAdmin(admin.ModelAdmin):
 
 class LogUnknownKeyAdmin(admin.ModelAdmin):
     # readonly_fields = []
-    list_display = ("hwid", "last_seen", "lock", "counter", "add_to_person")
+    list_display = ("__str__", "last_seen", "lock", "counter", "add_to_person")
     readonly_fields = (
         "hwid",
         "last_seen",
+        "created_at",
         "lock",
         "counter",
     )

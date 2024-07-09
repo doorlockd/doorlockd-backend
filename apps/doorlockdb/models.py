@@ -215,8 +215,7 @@ class Key(models.Model):
             return None
 
     def __str__(self):
-        return f"{self.hwid}"
-        return f"{self.__class__.__name__}(hwid={self.hwid}, owner={self.owner})"
+        return f"Key #{self.id}"
 
     def clean(self):
         # lowercase all keys:
@@ -451,7 +450,7 @@ class LogUnknownKey(models.Model):
         return u.counter + count
 
     def __str__(self):
-        return f"{self.__class__.__name__}(hwid={self.hwid}, counter={self.counter}) "
+        return f"{self.__class__.__name__} #{self.id}"
 
 
 # los method for checkAnyOutOfSync
