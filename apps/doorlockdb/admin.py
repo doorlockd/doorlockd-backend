@@ -277,10 +277,14 @@ class LogUnknownKeyAdmin(admin.ModelAdmin):
     def add_to_person(self, obj):
         # only show link for hwid who not already exist
         if obj.key_already_exists:
-            return "key already exist"
+            # return "key already exist"
+            url = reverse("admin:doorlockdb_logunknownkey_delete", args=(obj.id,))
+            return format_html(
+                f'<a href="{url}" class="deletelink">Delete</a> (already exists)'
+            )
         else:
             url = reverse("admin:doorlockdb_key_add") + f"?unknownkey={obj.hwid}"
-            return format_html(f'<a href="{url}">add to person<a>')
+            return format_html(f'<a class="addlink" href="{url}">Add to Person<a>')
 
     def has_add_permission(self, request, obj=None):
         return False
