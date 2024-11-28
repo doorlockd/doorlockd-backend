@@ -196,9 +196,15 @@ class Key(models.Model):
         help_text='Enter a meaningful description. example="NS OV chipkaart t.h.t. 02-2027"',
     )
     is_enabled = models.BooleanField(default=True)
+    meta_data_json = models.TextField(default="{}")  # default json('{}')
 
     # created_at = models.DateTimeField(auto_now_add=True)
     # updated_at = models.DateTimeField(auto_now=True)
+
+    @cached_property
+    def meta_info(self):
+        """Makes it easier to find the UnknownKey we are looking for, perhaps it makes it very slow too"""
+        return Helpers.KeyMetaInfo(self)
 
     @cached_property
     def last_seen_start(self):
@@ -234,9 +240,24 @@ class Key(models.Model):
         self.full_clean()
         try:
             result = super().save(*args, **kwargs)
-            # delete LogUnknownKey with this hwid
-            logme = LogUnknownKey.objects.filter(hwid=self.hwid).delete()
-            logger.info(f"related LogUnknownKey removed: {str(logme)}")
+
+            # get meta json data from LogUnknownKey if pressent.
+            try:
+                unknownkey = LogUnknownKey.objects.get(hwid=self.hwid)
+                self.meta_data_json = unknownkey.meta_data_json
+
+                # delete LogUnknownKey with this hwid
+                logme = unknownkey.delete()
+                logger.info(
+                    f"related LogUnknownKey removed: {str(logme)} : {unknownkey}"
+                )
+
+            except LogUnknownKey.DoesNotExist:
+                pass
+
+            # # delete LogUnknownKey with this hwid
+            # logme = LogUnknownKey.objects.filter(hwid=self.hwid).delete()
+            # logger.info(f"related LogUnknownKey removed: {str(logme)}")
 
         except Exception as e:
             raise e
@@ -425,11 +446,17 @@ class LogUnknownKey(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     last_seen = models.DateTimeField(blank=True, null=True, default=None)
+    meta_data_json = models.TextField(default="{}")  # default json('{}')
 
     class Meta:
         unique_together = ("hwid", "lock")
 
-    def register(hwid, lock, last_seen=None, count=1):
+    @cached_property
+    def meta_info(self):
+        """Makes it easier to find the UnknownKey we are looking for, perhaps it makes it very slow too"""
+        return Helpers.KeyMetaInfo(self)
+
+    def register(hwid, lock, last_seen=None, count=1, meta_data_json="{}"):
         #
         # set lock last_seen stats:
         #
@@ -443,8 +470,15 @@ class LogUnknownKey(models.Model):
         #   lookup
         u, created = LogUnknownKey.objects.get_or_create(hwid=hwid)
         # do + count
+
+        # merge nfctag_meta data:
+        meta_data = {**json.loads(u.meta_data_json), **json.loads(meta_data_json)}
+
         LogUnknownKey.objects.filter(hwid=hwid).update(
-            lock=lock, last_seen=last_seen, counter=F("counter") + count
+            lock=lock,
+            last_seen=last_seen,
+            meta_data_json=json.dumps(meta_data, indent=4),
+            counter=F("counter") + count,
         )
         # return counter value
         return u.counter + count
@@ -663,6 +697,22 @@ class Helpers:
             # else
             #     pass
         return p
+
+    @classmethod
+    def KeyMetaInfo(cls, obj):
+        """Makes it easier to find the UnknownKey we are looking for, perhaps it makes it very slow too"""
+        meta_list = []
+
+        # OV chipkaart validuntil:
+        try:
+            meta_list.append(
+                "OV Chipkaart valid "
+                + json.loads(obj.meta_data_json).get("ovchipkaart", {})["validuntil"]
+            )
+        except:
+            pass
+
+        return meta_list
 
 
 class SyncLockKeys(models.Model):

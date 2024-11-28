@@ -60,7 +60,19 @@ def linkify(field_name):
 class KeysInline(admin.TabularInline):
     model = Key
     max_num = 0
-    exclude = ("hwid",)
+    readonly_fields = ("meta_info",)
+    exclude = (
+        "hwid",
+        "meta_data_json",
+    )
+
+    def meta_info(self, obj):
+        return format_html(
+            # added raw meta_data_json in title (mouse over tooltip)
+            '<span title="{}"> {} </span>',
+            obj.meta_data_json,
+            obj.meta_info,
+        )
 
 
 @admin.action(description="Enable")
@@ -201,14 +213,34 @@ class PersonGroupAdmin(admin.ModelAdmin):
 
 
 class KeyAdmin(admin.ModelAdmin):
+    readonly_fields = ("meta_data", "meta_info")
     list_display = (
         "__str__",
         "description",
         linkify("owner"),
         "is_enabled",
+        "meta_info",
     )
+    # exclude = ("meta_data_json",)
     list_filter = ("is_enabled",)
     actions = (make_is_enabled_true, make_is_enabled_false)
+
+    def meta_data(self, obj):
+        return format_html("<pre>{}</pre>", obj.meta_data_json)
+
+    def get_changeform_initial_data(self, requests):
+        init_dict = super().get_changeform_initial_data(requests)
+        # get meta json data from LogUnknownKey if pressent.
+        try:
+            unknownkey = LogUnknownKey.objects.get(
+                hwid=init_dict.get("unknownkey", None)
+            )
+            init_dict["meta_data_json"] = unknownkey.meta_data_json
+
+        except LogUnknownKey.DoesNotExist:
+            pass
+
+        return init_dict
 
     # idea: select form for hwid , from UnknownKeys.
     def render_change_form(self, request, context, *args, **kwargs):
@@ -229,7 +261,7 @@ class KeyAdmin(admin.ModelAdmin):
                 unknownkeys.append(
                     (
                         k.hwid,
-                        f"last_seen={k.last_seen.strftime('%H:%M %d-%m-%Y')}, lock={k.lock}, counter={k.counter} , hwid={k.hwid}",
+                        f"last_seen={k.last_seen.strftime('%H:%M %d-%m-%Y')}, lock={k.lock}, counter={k.counter}, hwid={k.hwid}, meta={k.meta_info}",
                     )
                 )
 
@@ -254,15 +286,32 @@ class KeyAdmin(admin.ModelAdmin):
 
 class LogUnknownKeyAdmin(admin.ModelAdmin):
     # readonly_fields = []
-    list_display = ("__str__", "last_seen", "lock", "counter", "add_to_person")
+    list_display = (
+        "__str__",
+        "last_seen",
+        "lock",
+        "counter",
+        "add_to_person",
+        "meta_info",
+    )
     readonly_fields = (
         "hwid",
         "last_seen",
         "created_at",
         "lock",
         "counter",
+        "meta_info",
+        "meta_data",
     )
+    exclude = ("meta_data_json",)
     ordering = ("-last_seen",)
+
+    def meta_info(self, obj):
+        """Makes it easier to find the UnknownKey we are looking for, perhaps it makes it very slow too"""
+        return obj.meta_info
+
+    def meta_data(self, obj):
+        return format_html("<pre>{}</pre>", obj.meta_data_json)
 
     def get_queryset(self, request):
         queryset = super().get_queryset(request)

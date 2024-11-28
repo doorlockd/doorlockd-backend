@@ -24,7 +24,13 @@ class LockAuhClientSSL:
         return Helpers.AuthWithByClientSSL(request)
 
 
-api = NinjaAPI(auth=LockAuhClientSSL())
+api = NinjaAPI(auth=LockAuhClientSSL(), version="1.1.0", title="Doorlockd API")
+#
+# Version Changelog:
+# api v 1.1.0: meta_data_json added to /api/lock/log.unknownkeys,
+#              incompatible with prior versions! upgrade backend and client at same time.
+# api v 1.0.0: not documented, see /api/docs#/ on running backend.
+#
 
 
 @api.exception_handler(Helpers.ErrorClientSSLCert)
@@ -106,6 +112,7 @@ class LogUnknownKeySchema(Schema):
     key: str
     timestamp: str  # 'datetime.datetime.fromtimestamp(datetime.datetime.utcnow().timestamp()).isoformat()'
     count: PositiveInt
+    meta_data_json: str = "{}"
 
 
 class LogUnknownKeysOutputSchema(Schema):
@@ -133,7 +140,7 @@ def api_lock_log_unknownkeys(request, input_data: LogUnknownKeysInputSchema):
     # proces input list of dicts[{'key': hwid, 'timestamp': ..., 'count': int}]
     for uk in input_data.unknownkeys:
         try:
-            LogUnknownKey.register(uk.key, l, uk.timestamp, uk.count)
+            LogUnknownKey.register(uk.key, l, uk.timestamp, uk.count, uk.meta_data_json)
             saved.append(uk)
         except Exception as e:
             raise Exception(e)
