@@ -7,7 +7,7 @@ from django.utils.html import format_html
 from django.urls import reverse
 from django import forms
 from django.db.models import Count, Max
-from django.db.models import Exists, OuterRef
+from django.db.models import OuterRef, Subquery
 from django.db.models.functions import Lower
 from django.forms import Textarea
 
@@ -20,7 +20,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.urls import reverse
 from django.utils.html import format_html
 
-
+admin.site.register(KeyMetaData)
 # admin.site.register(Person)
 # admin.site.register(PersonGroup)
 # admin.site.register(Key)
@@ -65,6 +65,9 @@ class KeysInline(admin.TabularInline):
         "hwid",
         "meta_data_json",
     )
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).with_meta_data_json()
 
     def meta_info(self, obj):
         return format_html(
@@ -128,7 +131,7 @@ class PersonAdmin(admin.ModelAdmin):
         "group_count",
         "last_seen_start",
         "last_seen_end",
-        "oops",
+        # "oops",
     )
     list_filter = (
         "is_enabled",
@@ -225,39 +228,32 @@ class KeyAdmin(admin.ModelAdmin):
     list_filter = ("is_enabled",)
     actions = (make_is_enabled_true, make_is_enabled_false)
 
+    def get_queryset(self, request):
+        return super().get_queryset(request).with_meta_data_json()
+
     def meta_data(self, obj):
         return format_html("<pre>{}</pre>", obj.meta_data_json)
 
-    def get_changeform_initial_data(self, requests):
-        init_dict = super().get_changeform_initial_data(requests)
-        # get meta json data from LogUnknownKey if pressent.
-        try:
-            unknownkey = LogUnknownKey.objects.get(
-                hwid=init_dict.get("unknownkey", None)
-            )
-            init_dict["meta_data_json"] = unknownkey.meta_data_json
-
-        except LogUnknownKey.DoesNotExist:
-            pass
-
-        return init_dict
-
-    # idea: select form for hwid , from UnknownKeys.
     def render_change_form(self, request, context, *args, **kwargs):
         # this field is readonly, unless we overwrite it with our ChoiceField
         context["adminform"].form.fields["hwid"].widget.attrs["readonly"] = True
 
-        # link from UnknonwnKey list
+        #
+        # link from UnknonwnKey list (GET ... ?unknownkey=xxxx)
+        #
         if request.GET.get("unknownkey"):
             context["adminform"].form.fields["hwid"].widget.attrs["value"] = (
                 request.GET.get("unknownkey")
             )
 
-        # browsing to "new" Key
+        #
+        # browsing to "Add Key"
+        #
         elif kwargs["obj"] is None:
+
             # obj is None -> New
             unknownkeys = [(None, "Recent found keys:")]
-            for k in LogUnknownKey.objects.order_by("-last_seen"):
+            for k in LogUnknownKey.objects.with_meta_data_json().order_by("-last_seen"):
                 unknownkeys.append(
                     (
                         k.hwid,
@@ -272,9 +268,23 @@ class KeyAdmin(admin.ModelAdmin):
                 required=True,
             )
 
-            # is working but could be better:
-            # when the form is rendered with validation errors, the "hwid" ChoiceField will be back overwritten with the CharField.
-            # I wish to fix this but doesn't know how.
+        #
+        # adding KeyMetaData. meta_data and meta_info to form:
+        #
+        try:
+            # use either one of these:
+            # hwid = context["adminform"].form.fields["hwid"].widget.attrs["value"] # set from HTTP GET atttribute 'unknownkey'
+            # hwid = context['adminform'].form.instance.hwid # previously set in form.
+            hwid = (
+                context["adminform"]
+                .form.fields["hwid"]
+                .widget.attrs.get("value", context["adminform"].form.instance.hwid)
+            )
+            context["adminform"].form.instance.meta_data_json = KeyMetaData.objects.get(
+                hwid=hwid
+            ).meta_data_json
+        except:
+            pass
 
         return super().render_change_form(request, context, *args, **kwargs)
 
@@ -306,17 +316,18 @@ class LogUnknownKeyAdmin(admin.ModelAdmin):
     exclude = ("meta_data_json",)
     ordering = ("-last_seen",)
 
-    def meta_info(self, obj):
-        """Makes it easier to find the UnknownKey we are looking for, perhaps it makes it very slow too"""
-        return obj.meta_info
-
     def meta_data(self, obj):
         return format_html("<pre>{}</pre>", obj.meta_data_json)
 
     def get_queryset(self, request):
-        queryset = super().get_queryset(request)
+        queryset = (
+            super().get_queryset(request).with_meta_data_json().prefetch_related("lock")
+        )
         return queryset.annotate(
-            key_already_exists=Exists(Key.objects.filter(hwid=OuterRef("hwid")))
+            # key_already_exists=Exists(Key.objects.filter(hwid=OuterRef("hwid")))
+            key_already_exists=Subquery(
+                Key.objects.filter(hwid=OuterRef("hwid")).values("id")
+            )
         )
 
     #
@@ -327,13 +338,13 @@ class LogUnknownKeyAdmin(admin.ModelAdmin):
         # only show link for hwid who not already exist
         if obj.key_already_exists:
             # return "key already exist"
-            url = reverse("admin:doorlockdb_logunknownkey_delete", args=(obj.id,))
+            url = reverse("admin:doorlockdb_key_change", args=(obj.key_already_exists,))
             return format_html(
-                f'<a href="{url}" class="deletelink">Delete</a> (already exists)'
+                f'<a href="{url}" title="Key already exists" class="changelink">Edit Key #{obj.key_already_exists}</a>'
             )
         else:
             url = reverse("admin:doorlockdb_key_add") + f"?unknownkey={obj.hwid}"
-            return format_html(f'<a class="addlink" href="{url}">Add to Person<a>')
+            return format_html(f'<a class="addlink" href="{url}">Add Key<a>')
 
     def has_add_permission(self, request, obj=None):
         return False

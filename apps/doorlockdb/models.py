@@ -7,7 +7,7 @@ from mimetypes import init
 from sre_compile import isstring
 from django.db import models
 from django.db.models import F, Q
-from django.db.models import Max
+from django.db.models import Max, OuterRef, Subquery
 from django.core.exceptions import ValidationError
 from django.utils.functional import cached_property
 
@@ -77,7 +77,6 @@ def getServerSSLFingerprint():
     return hashlib.sha256(base64.b64decode(cert[begin_cert:end_cert])).hexdigest()
 
 
-# Create your models here.
 class Person(models.Model):
     name = models.CharField(max_length=32, unique=True)
     email = models.EmailField(unique=True, blank=True, null=True, default=None)
@@ -180,7 +179,86 @@ class AccessRule(models.Model):
         return f"{self.__class__.__name__}({self.parent.name}# {str( Helpers.exportAccessRule(self))})"
 
 
-class Key(models.Model):
+#
+# KeyMetaData
+#
+class AddKeyMetaDataModelMixin:
+    """Adds meta_info cached property from KeyMetaData(Model) (for *Key related models)"""
+
+    @cached_property
+    def meta_info(self):
+        """Makes it easier to find the UnknownKey we are looking for, perhaps it makes it very slow too"""
+        meta_list = []
+
+        # print(f"DEBUG KeyMetaInfo: self: {self}, id:{self.id}, hwid:{self.hwid}")
+
+        #
+        # OV chipkaart validuntil:
+        #
+        try:
+            meta_list.append(
+                "OV Chipkaart valid "
+                + json.loads(self.meta_data_json).get("ovchipkaart", {})["validuntil"]
+            )
+        except:
+            pass
+
+        #
+        # NFC Tag product version:
+        #
+        try:
+            meta_list.append(
+                "Tag " + json.loads(self.meta_data_json).get("tag", {})["product"]
+            )
+        except:
+            pass
+
+        return meta_list
+
+
+class AddKeyMetaDataQuerySetMixin:
+    def with_meta_data_json(self):
+        """
+        Adds meta_data_json annotation.
+
+        This is the raw json value of meta_data.
+        """
+        return self.annotate(
+            meta_data_json=Subquery(
+                KeyMetaData.objects.filter(hwid=OuterRef("hwid")).values(
+                    "meta_data_json"
+                )
+            )
+        )
+
+
+class KeyMetaData(AddKeyMetaDataModelMixin, models.Model):
+    """MetaData on NFC Keys."""
+
+    hwid = models.CharField(max_length=32, unique=True)
+    meta_data_json = models.TextField(default="{}")  # default json('{}')
+
+    def __str__(self):
+        return f"{self.hwid} {self.meta_info}"
+
+    def merge_meta_data_json(self, meta_data_json="{}"):
+        """Merge new meta_data_json with existing self.meta_data_json."""
+        meta_data = {**json.loads(self.meta_data_json), **json.loads(meta_data_json)}
+        self.meta_data_json = json.dumps(meta_data, indent=4)
+
+
+#
+# Key:
+#
+class KeyQuerySet(AddKeyMetaDataQuerySetMixin, models.QuerySet):
+    """return custom Key annotations"""
+
+
+class KeyManager(models.Manager.from_queryset(KeyQuerySet)):
+    pass
+
+
+class Key(AddKeyMetaDataModelMixin, models.Model):
     """
     Stores a single Key/rfidtag, related to :model:`doorlockdb:Person` and
     :model:`auth.User`.
@@ -196,15 +274,11 @@ class Key(models.Model):
         help_text='Enter a meaningful description. example="NS OV chipkaart t.h.t. 02-2027"',
     )
     is_enabled = models.BooleanField(default=True)
-    meta_data_json = models.TextField(default="{}")  # default json('{}')
 
     # created_at = models.DateTimeField(auto_now_add=True)
     # updated_at = models.DateTimeField(auto_now=True)
 
-    @cached_property
-    def meta_info(self):
-        """Makes it easier to find the UnknownKey we are looking for, perhaps it makes it very slow too"""
-        return Helpers.KeyMetaInfo(self)
+    objects = KeyManager()
 
     @cached_property
     def last_seen_start(self):
@@ -241,23 +315,9 @@ class Key(models.Model):
         try:
             result = super().save(*args, **kwargs)
 
-            # get meta json data from LogUnknownKey if pressent.
-            try:
-                unknownkey = LogUnknownKey.objects.get(hwid=self.hwid)
-                self.meta_data_json = unknownkey.meta_data_json
-
-                # delete LogUnknownKey with this hwid
-                logme = unknownkey.delete()
-                logger.info(
-                    f"related LogUnknownKey removed: {str(logme)} : {unknownkey}"
-                )
-
-            except LogUnknownKey.DoesNotExist:
-                pass
-
-            # # delete LogUnknownKey with this hwid
-            # logme = LogUnknownKey.objects.filter(hwid=self.hwid).delete()
-            # logger.info(f"related LogUnknownKey removed: {str(logme)}")
+            # delete LogUnknownKey with this hwid
+            logme = LogUnknownKey.objects.filter(hwid=self.hwid).delete()
+            logger.info(f"related LogUnknownKey removed: {str(logme)}")
 
         except Exception as e:
             raise e
@@ -439,22 +499,31 @@ class Lock(models.Model):
             raise e
 
 
-class LogUnknownKey(models.Model):
+#
+# LogUnknownKey
+#
+
+
+class LogUnknownKeyQuerySet(AddKeyMetaDataQuerySetMixin, models.QuerySet):
+    """return custom LogUnknownKey annotations"""
+
+
+class LogUnknownKeyManager(models.Manager.from_queryset(LogUnknownKeyQuerySet)):
+    pass
+
+
+class LogUnknownKey(AddKeyMetaDataModelMixin, models.Model):
     hwid = models.CharField(max_length=32, unique=True)
     lock = models.ForeignKey("Lock", on_delete=models.SET_NULL, null=True)
     counter = models.SmallIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     last_seen = models.DateTimeField(blank=True, null=True, default=None)
-    meta_data_json = models.TextField(default="{}")  # default json('{}')
+
+    objects = LogUnknownKeyManager()
 
     class Meta:
         unique_together = ("hwid", "lock")
-
-    @cached_property
-    def meta_info(self):
-        """Makes it easier to find the UnknownKey we are looking for, perhaps it makes it very slow too"""
-        return Helpers.KeyMetaInfo(self)
 
     def register(hwid, lock, last_seen=None, count=1, meta_data_json="{}"):
         #
@@ -466,18 +535,19 @@ class LogUnknownKey(models.Model):
 
         # translate hwid to lowercase:
         hwid = hwid.lower()
-        # print("DEBUG: ", hwid, lock, last_seen, count)
-        #   lookup
         u, created = LogUnknownKey.objects.get_or_create(hwid=hwid)
+
+        #
+        # create or merge KeyMetaData:
+        #
+        md, created = KeyMetaData.objects.get_or_create(hwid=hwid)
+        md.merge_meta_data_json(meta_data_json)
+        md.save()
+
         # do + count
-
-        # merge nfctag_meta data:
-        meta_data = {**json.loads(u.meta_data_json), **json.loads(meta_data_json)}
-
         LogUnknownKey.objects.filter(hwid=hwid).update(
             lock=lock,
             last_seen=last_seen,
-            meta_data_json=json.dumps(meta_data, indent=4),
             counter=F("counter") + count,
         )
         # return counter value
@@ -697,22 +767,6 @@ class Helpers:
             # else
             #     pass
         return p
-
-    @classmethod
-    def KeyMetaInfo(cls, obj):
-        """Makes it easier to find the UnknownKey we are looking for, perhaps it makes it very slow too"""
-        meta_list = []
-
-        # OV chipkaart validuntil:
-        try:
-            meta_list.append(
-                "OV Chipkaart valid "
-                + json.loads(obj.meta_data_json).get("ovchipkaart", {})["validuntil"]
-            )
-        except:
-            pass
-
-        return meta_list
 
 
 class SyncLockKeys(models.Model):
