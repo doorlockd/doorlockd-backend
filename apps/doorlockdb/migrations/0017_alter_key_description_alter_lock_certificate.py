@@ -11,9 +11,6 @@ def forwards_func(apps, schema_editor):
     Lock = apps.get_model("doorlockdb", "Lock")
     db_alias = schema_editor.connection.alias
 
-    lock = Lock.objects.last()
-    lock.save()
-
     for lock in Lock.objects.using(db_alias).all():
         lock.certificate = lock.certificate + "\n"
         lock.save()
@@ -24,9 +21,6 @@ def reverse_func(apps, schema_editor):
     # save won't run cleanup_certificate() during migration so we alter it manually
     Lock = apps.get_model("doorlockdb", "Lock")
     db_alias = schema_editor.connection.alias
-
-    lock = Lock.objects.last()
-    lock.save()
 
     for lock in Lock.objects.using(db_alias).all():
         lock.certificate = lock.certificate.strip()
@@ -54,7 +48,7 @@ class Migration(migrations.Migration):
             field=models.TextField(
                 blank=True,
                 default=None,
-                help_text="Paste client certitificate here (including '-----BEGIN CERTIFICATE-----' and '-----END CERTIFICATE-----').<br>\n<br>\nOn the client configure this server server Fingerprint. (hint: restart django after server ssl certificate is changed). <br>\n<code>server_ssl_fingerprint='Error: [Errno 2] No such file or directory: '/etc/ssl/certs/ssl-cert-snakeoil.pem'. \n(see SERVER_SSL_CERTIFICATE in settings.py).'</code>",
+                help_text="Paste client certitificate here (including '-----BEGIN CERTIFICATE-----' and '-----END CERTIFICATE-----').<br>\n<br>\nOn the client configure this server server Fingerprint. (hint: restart django after server ssl certificate is changed). <br>\n<code> ... This not visible during migrations.\n.</code>",
                 max_length=2000,
                 null=True,
                 unique=True,
