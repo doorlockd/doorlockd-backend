@@ -233,7 +233,12 @@ class KeyAdmin(admin.ModelAdmin):
     actions = (make_is_enabled_true, make_is_enabled_false)
 
     def get_queryset(self, request):
-        return super().get_queryset(request).with_meta_data_json()
+        return (
+            super()
+            .get_queryset(request)
+            .with_meta_data_json()
+            .prefetch_related("owner")
+        )
 
     def meta_data(self, obj):
         return format_html("<pre>{}</pre>", obj.meta_data_json)

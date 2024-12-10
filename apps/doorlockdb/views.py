@@ -104,9 +104,19 @@ def details_person(request, person_id):
     if not request.user.has_perm("doorlockdb.view_person"):
         return HttpResponse("Oeps ... no permision to view person")
 
-    person = get_object_or_404(Person, pk=person_id)
+    # person = get_object_or_404(Person, pk=person_id)
+    qs = (
+        Person.objects.prefetch_related("key_set")
+        .prefetch_related("key_set__logkeylastseen")
+        .prefetch_related("personsgroup")
+        .prefetch_related("personsgroup__access_groups")
+        .prefetch_related("personsgroup__access_groups__locks")
+        .prefetch_related("personsgroup__access_groups__rules")
+        .prefetch_related("personsgroup__access_groups__rules__accessrule_set")
+    )
+    person = get_object_or_404(qs, pk=person_id)
 
-    locks = Lock.objects.all()
+    locks = Lock.objects.prefetch_related("synclockkeys").all()
     person.set_check_any_out_of_sync(locks)
 
     return render(request, "details_person.html", {"person": person})
