@@ -32,6 +32,10 @@ admin.site.register(KeyMetaData)
 # admin.site.register(LogUnknownKey)
 # admin.site.register(LogKeyLastSeen)
 
+# set site header and title:
+admin.site.site_header = "Doorlockd Admin"
+admin.site.index_title = "Doorlockd administration."
+
 
 def linkify(field_name):
     """
