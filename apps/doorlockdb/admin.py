@@ -375,6 +375,9 @@ class LogKeyLastSeenAdmin(admin.ModelAdmin):
         # return linkify("owner")(obj.key)
         return obj.key.owner
 
+    def has_add_permission(self, request, obj=None):
+        return False
+
 
 class AccessRuleInline(admin.StackedInline):
     model = AccessRule
