@@ -19,7 +19,7 @@ is_enabled: {{ lock.is_enabled }}
 <code>
 <h3>Persons:</h3>
 {% for person in lock.custom_all_persons %}
-<li><a href="{{person.get_absolute_url}}"> {{ person.name }}</a>, {{ person.is_enabled }}, {{ person.email }}</li>
+<li><a href="{% url 'details_person' person.id %}"> {{ person.name }}</a>, {{ person.is_enabled }}, {{ person.email }}</li>
 {% endfor %}
 
 <h3>Groups:</h3>
