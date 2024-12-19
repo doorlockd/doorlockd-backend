@@ -20,7 +20,9 @@ from django.contrib.contenttypes.models import ContentType
 from django.urls import reverse
 from django.utils.html import format_html
 
-admin.site.register(KeyMetaData)
+# enable KeyMetaData for debugging:
+# admin.site.register(KeyMetaData)
+
 # admin.site.register(Person)
 # admin.site.register(PersonGroup)
 # admin.site.register(Key)

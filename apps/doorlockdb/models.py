@@ -681,7 +681,7 @@ class Helpers:
                 access_groups=ag, is_enabled=True
             ).all():
                 for p in pg.persons.filter(is_enabled=True):
-                    for k in p.key_set.filter(is_enabled=True):
+                    for k in p.key_set.with_meta_data_json().filter(is_enabled=True):
                         keys.append(k)
 
             #
@@ -692,6 +692,10 @@ class Helpers:
                 if k.hwid not in result.keys():
                     # add hwid + empty ruleset
                     result[k.hwid] = {"ruleset": []}
+
+                    # has no meta data?
+                    if not k.meta_data_json:
+                        result[k.hwid]["need_meta_data"] = True
 
                 # append this ruleset to the rulessets
                 # result[k.hwid]['ruleset'] += ruleset

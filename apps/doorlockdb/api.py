@@ -24,9 +24,10 @@ class LockAuhClientSSL:
         return Helpers.AuthWithByClientSSL(request)
 
 
-api = NinjaAPI(auth=LockAuhClientSSL(), version="1.1.0", title="Doorlockd API")
+api = NinjaAPI(auth=LockAuhClientSSL(), version="1.1.1", title="Doorlockd API")
 #
 # Version Changelog:
+# api v 1.1.1: adds /api/key/merge.meta_data_json (add/merge meta_data_json for existing keys)
 # api v 1.1.0: meta_data_json added to /api/lock/log.unknownkeys,
 #              incompatible with prior versions! upgrade backend and client at same time.
 # api v 1.0.0: not documented, see /api/docs#/ on running backend.
@@ -189,6 +190,45 @@ def api_lock_log_keys_last_seen(request, input_data: LogKeysLastSeenInputSchema)
             raise Exception(e)
 
     return {"saved": saved}
+
+
+#
+# set/update meta_data_json
+#
+class KeyMetaDataJsonInputSchema(Schema):
+    key: str
+    meta_data_json: str = "{}"
+
+
+class KeyMetaDataJsonOutputSchema(Schema):
+    saved: bool
+
+
+@api.post(
+    "/key/merge.meta_data_json",
+    response={200: KeyMetaDataJsonOutputSchema, 401: ErrorOutputSchema},
+)
+def api_merge_key_meta_data_json(request, input_data: KeyMetaDataJsonInputSchema):
+    """Set or Merge keys meta_data_json"""
+
+    # get Lock from authentication
+    l = request.auth
+
+    if not Key.objects.filter(hwid=input_data.key).exists():
+        logging.error(f"api KeyMetaData merge. Key does not exist: '{input_data.key}'.")
+        return {"saved": False}
+
+    try:
+        # create or merge KeyMetaData:
+        md, created = KeyMetaData.objects.get_or_create(hwid=input_data.key)
+        md.merge_meta_data_json(input_data.meta_data_json)
+        md.save()
+        logging.info(f"api KeyMetaData '{input_data.key}' successfully merged.")
+
+    except Exception as e:
+        raise Exception(e)
+
+    return {"saved": True}
 
 
 #
