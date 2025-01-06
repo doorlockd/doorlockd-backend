@@ -586,6 +586,10 @@ class Helpers:
             client_cert = Lock.cleanup_certificate(
                 unquote(request.META["HTTP_X_SSL_CERT"])
             )
+        except ValidationError as e:
+            raise cls.ErrorClientSSLCert(
+                "malformed client certificate (HTTP_X_SSL_CERT)."
+            )
         except:
             raise cls.ErrorClientSSLCert(
                 "no client certificate found (HTTP_X_SSL_CERT missing)"
