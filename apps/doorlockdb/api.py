@@ -12,6 +12,9 @@ from typing import List
 
 from django.core import serializers
 
+import uuid
+from datetime import datetime
+
 
 #
 # client SSL certificate authentication
@@ -24,9 +27,10 @@ class LockAuhClientSSL:
         return Helpers.AuthWithByClientSSL(request)
 
 
-api = NinjaAPI(auth=LockAuhClientSSL(), version="1.1.1", title="Doorlockd API")
+api = NinjaAPI(auth=LockAuhClientSSL(), version="1.1.2", title="Doorlockd API")
 #
 # Version Changelog:
+# api v 1.1.2: in /api/lock/log.unknownkeys + /api/lock/log.keys_last_seen ( "err_msgs": [] response)
 # api v 1.1.1: adds /api/key/merge.meta_data_json (add/merge meta_data_json for existing keys)
 # api v 1.1.0: meta_data_json added to /api/lock/log.unknownkeys,
 #              incompatible with prior versions! upgrade backend and client at same time.
@@ -38,6 +42,30 @@ api = NinjaAPI(auth=LockAuhClientSSL(), version="1.1.1", title="Doorlockd API")
 def on_client_ssl_cert_error(request, exc):
     return api.create_response(
         request, {"error": f"Client SSL Certificate error :'{exc}'"}, status=401
+    )
+
+
+@api.exception_handler(ValidationError)
+def on_client_ssl_cert_error(request, exc):
+    return api.create_response(
+        request, {"error": f"ValidationError:'{exc}'"}, status=422
+    )
+
+
+@api.exception_handler(Exception)
+def on_unexpected_exception(request, exc):
+    """Catch unexpected exceptions, hide them for outsiders and give an log reference (log_ref) to lookup in the logs."""
+
+    log_ref = uuid.uuid4()
+    logging.error(
+        f"Unexpected exception (log_ref: {log_ref}) in request '{request}'; '{exc}'.",
+        exc_info=exc,
+    )
+
+    return api.create_response(
+        request,
+        {"error": f"Unexpected exception, see log for details (log_ref: {log_ref})"},
+        status=500,
     )
 
 
@@ -118,6 +146,7 @@ class LogUnknownKeySchema(Schema):
 
 class LogUnknownKeysOutputSchema(Schema):
     saved: List[LogUnknownKeySchema]
+    err_msgs: List[str]
 
 
 class LogUnknownKeysInputSchema(Schema):
@@ -134,19 +163,56 @@ class LogUnknownKeysInputSchema(Schema):
 def api_lock_log_unknownkeys(request, input_data: LogUnknownKeysInputSchema):
     """Post unknown_keys statistics"""
     saved = []
+    err_msgs = []
 
     # get Lock from authentication
     l = request.auth
 
     # proces input list of dicts[{'key': hwid, 'timestamp': ..., 'count': int}]
     for uk in input_data.unknownkeys:
+        # parse timestamp:
         try:
-            LogUnknownKey.register(uk.key, l, uk.timestamp, uk.count, uk.meta_data_json)
+            timestamp = datetime.fromisoformat(uk.timestamp)
+        except Exception as e:
+            err_msg = f"Can't process timestamp for hwid[{uk.key}]: '{e}'"
+            logging.error(f"Error in api_lock_log_unknownkeys[]: {err_msg}")
+
+            # for api response:
+            err_msgs.append(err_msg)
+
+            # continue with next 'uk' in list
+            continue
+
+        # process json input:
+        try:
+            meta_data = json.loads(uk.meta_data_json)
+        except json.decoder.JSONDecodeError as e:
+            # this item fails, put error in log file and append messsage in api response.
+            err_msg = f"Can't process meta_data_json for hwid[{uk.key}]: '{e}'"
+            logging.error(f"Error in api_lock_log_unknownkeys[]: {err_msg}")
+
+            # for api response:
+            err_msgs.append(err_msg)
+
+            # continue with next 'uk' in list
+            continue
+
+        # save item:
+        try:
+            LogUnknownKey.register(uk.key, l, timestamp, uk.count, meta_data)
             saved.append(uk)
         except Exception as e:
-            raise Exception(e)
+            # this item fails, put error in log file and append messsage in api response.
+            err_msg = f"Unexpected exception during hwid[{uk.key}]."
+            logging.error(f"Error in api_lock_log_unknownkeys[]: {err_msg}", exc_info=e)
 
-    return {"saved": saved}
+            # for api response:
+            err_msgs.append(f"{err_msg}, see log for details.")
+
+            # continue with next 'uk' in list
+            continue
+
+    return {"saved": saved, "err_msgs": err_msgs}
 
 
 #
@@ -161,6 +227,7 @@ class LogKeysLastSeenSchema(Schema):
 
 class LogKeysLastSeenOutputSchema(Schema):
     saved: List[LogKeysLastSeenSchema]
+    err_msgs: List[str]
 
 
 class LogKeysLastSeenInputSchema(Schema):
@@ -174,6 +241,7 @@ class LogKeysLastSeenInputSchema(Schema):
 def api_lock_log_keys_last_seen(request, input_data: LogKeysLastSeenInputSchema):
     """Post keys statistics"""
     saved = []
+    err_msgs = []
 
     # get Lock from authentication
     l = request.auth
@@ -181,15 +249,51 @@ def api_lock_log_keys_last_seen(request, input_data: LogKeysLastSeenInputSchema)
     # LogKeyLastSeen.addLastSeen(hwid, lock, last_seen_start=None, last_seen_end=None, count=1):
     # proces input list of dicts[{'key': hwid, 'timestamp': ..., 'count': int}]
     for k in input_data.keys_last_seen:
+        # parse timestamp_begin:
+        try:
+            timestamp_begin = datetime.fromisoformat(k.timestamp_begin)
+        except Exception as e:
+            err_msg = f"Can't process timestamp_begin for hwid[{k.key}]: '{e}'"
+            logging.error(f"Error in api_lock_log_keys_last_seen[]: {err_msg}")
+
+            # for api response:
+            err_msgs.append(err_msg)
+
+            # continue with next 'k' in list
+            continue
+
+        # parse timestamp_end:
+        try:
+            timestamp_end = datetime.fromisoformat(k.timestamp_end)
+        except Exception as e:
+            err_msg = f"Can't process timestamp_end for hwid[{k.key}]: '{e}'"
+            logging.error(f"Error in api_lock_log_keys_last_seen[]: {err_msg}")
+
+            # for api response:
+            err_msgs.append(err_msg)
+
+            # continue with next 'k' in list
+            continue
+
         try:
             LogKeyLastSeen.addLastSeen(
-                k.key, l, k.timestamp_begin, k.timestamp_end, k.count
+                k.key, l, timestamp_begin, timestamp_end, k.count
             )
             saved.append(k)
         except Exception as e:
-            raise Exception(e)
+            # this item fails, put error in log file and append messsage in api response.
+            err_msg = f"Unexpected exception during hwid[{k.key}]."
+            logging.error(
+                f"Error in api_lock_log_keys_last_seen[]: {err_msg}", exc_info=e
+            )
 
-    return {"saved": saved}
+            # for api response:
+            err_msgs.append(f"{err_msg}, see log for details.")
+
+            # continue with next 'uk' in list
+            continue
+
+    return {"saved": saved, "err_msgs": err_msgs}
 
 
 #
@@ -218,15 +322,19 @@ def api_merge_key_meta_data_json(request, input_data: KeyMetaDataJsonInputSchema
         logging.error(f"api KeyMetaData merge. Key does not exist: '{input_data.key}'.")
         return {"saved": False}
 
+    # process json input:
     try:
-        # create or merge KeyMetaData:
-        md, created = KeyMetaData.objects.get_or_create(hwid=input_data.key)
-        md.merge_meta_data_json(input_data.meta_data_json)
-        md.save()
-        logging.info(f"api KeyMetaData '{input_data.key}' successfully merged.")
+        meta_data = json.loads(input_data.meta_data_json)
+    except json.decoder.JSONDecodeError as e:
+        return api.create_response(
+            request, {"error": f"Can't process meta_data_json: '{e}'"}, status=422
+        )
 
-    except Exception as e:
-        raise Exception(e)
+    # create or merge KeyMetaData:
+    md, created = KeyMetaData.objects.get_or_create(hwid=input_data.key)
+    md.merge_meta_data_json(meta_data)
+    md.save()
+    logging.info(f"api KeyMetaData '{input_data.key}' successfully merged.")
 
     return {"saved": True}
 

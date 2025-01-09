@@ -15,7 +15,10 @@ from django.utils.functional import cached_property
 from urllib.parse import unquote
 
 import json
+
 import datetime
+from django.utils import timezone
+
 import hashlib
 
 import logging
@@ -241,9 +244,9 @@ class KeyMetaData(AddKeyMetaDataModelMixin, models.Model):
     def __str__(self):
         return f"{self.hwid} {self.meta_info}"
 
-    def merge_meta_data_json(self, meta_data_json="{}"):
+    def merge_meta_data_json(self, meta_data={}):
         """Merge new meta_data_json with existing self.meta_data_json."""
-        meta_data = {**json.loads(self.meta_data_json), **json.loads(meta_data_json)}
+        meta_data = {**json.loads(self.meta_data_json), **meta_data}
         self.meta_data_json = json.dumps(meta_data, indent=4)
 
 
@@ -342,9 +345,7 @@ class LogKeyLastSeen(models.Model):
         #
         # set lock last_seen stats:
         #
-        SyncLockKeys.objects.filter(lock=lock).update(
-            last_log_keys=datetime.datetime.now()
-        )
+        SyncLockKeys.objects.filter(lock=lock).update(last_log_keys=timezone.now())
 
         if isstring(last_seen_start):
             last_seen_start = datetime.datetime.fromisoformat(last_seen_start)
@@ -352,7 +353,6 @@ class LogKeyLastSeen(models.Model):
         if isstring(last_seen_end):
             last_seen_end = datetime.datetime.fromisoformat(last_seen_end)
 
-        print("DEBUG: ", hwid, lock, last_seen_start, last_seen_end, count)
         #   lookup
         try:
             k = Key.objects.get(hwid=hwid)
@@ -530,7 +530,7 @@ class LogUnknownKey(AddKeyMetaDataModelMixin, models.Model):
         # set lock last_seen stats:
         #
         SyncLockKeys.objects.filter(lock=lock).update(
-            last_log_unknownkeys=datetime.datetime.now()
+            last_log_unknownkeys=timezone.now()
         )
 
         # translate hwid to lowercase:
@@ -598,9 +598,7 @@ class Helpers:
         try:
             lock = Lock.objects.get(certificate=client_cert)
             # update last_seen timestamp
-            SyncLockKeys.objects.filter(lock=lock).update(
-                last_seen=datetime.datetime.now()
-            )
+            SyncLockKeys.objects.filter(lock=lock).update(last_seen=timezone.now())
             return lock
 
         except Lock.DoesNotExist as e:
@@ -799,11 +797,11 @@ class SyncLockKeys(models.Model):
         # compare hash
         if Helpers.get_hash_for_dict(db_keys_config) == lock_keys_hash:
             # we are good.
-            self.config_time = datetime.datetime.now()
+            self.config_time = timezone.now()
             self.keys_json = json.dumps(db_keys_config)
             self.synchronized = True
             # set last_sync_keys timestamp
-            self.last_sync_keys = datetime.datetime.now()
+            self.last_sync_keys = timezone.now()
             self.save()
 
             # return: no-update, no new data:
@@ -929,7 +927,7 @@ def post_update_check_sync(sender, **kwargs):
     # print(f"SIGNAL debug: {sender}", kwargs)
 
     if sender is Lock:
-        print(f"SIGNAL 1 lock: {sender}", kwargs)
+        # print(f"SIGNAL 1 lock: {sender}", kwargs)
         lock = kwargs.get("instance")
         # to save SQLqueries we no longer do lock.check_sync(),
         # we now only mark this one as sync status unknown (None)
@@ -949,7 +947,7 @@ def post_update_check_sync(sender, **kwargs):
         if kwargs.get("action", "not set") in ["pre_add", "pre_remove"]:
             return
 
-        print(f"SIGNAL match: {sender}", kwargs)
+        # print(f"SIGNAL match: {sender}", kwargs)
         # to save SQLqueries we no longer do lock.check_sync() for lock in Lock.objects.all(),
         # we now only mark all locks as sync status unknown:
         SyncLockKeys.objects.update(synchronized=None)
@@ -959,7 +957,7 @@ def post_delete_check_sync(sender, **kwargs):
     # print(f"SIGNAL post_delete: {sender}", kwargs)
 
     if sender is Lock:
-        print(f"SIGNAL 1 lock: IGNORE this :)# {sender}", kwargs)
+        # print(f"SIGNAL 1 lock: IGNORE this :)# {sender}", kwargs)
         return
         # lock = kwargs.get('instance')
         # lock.check_sync()
@@ -976,7 +974,7 @@ def post_delete_check_sync(sender, **kwargs):
         if kwargs.get("action", "not set") in ["pre_add", "pre_remove"]:
             return
 
-        print(f"SIGNAL match: {sender}", kwargs)
+        # print(f"SIGNAL match: {sender}", kwargs)
         # to save SQLqueries we no longer do lock.check_sync() for lock in Lock.objects.all(),
         # we now only mark all locks as sync status unknown:
         SyncLockKeys.objects.update(synchronized=None)
