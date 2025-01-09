@@ -189,6 +189,10 @@ class AddKeyMetaDataModelMixin:
     """Adds meta_info cached property from KeyMetaData(Model) (for *Key related models)"""
 
     @cached_property
+    def meta_data_dict(self):
+        return json.loads(self.meta_data_json)
+
+    @cached_property
     def meta_info(self):
         """Makes it easier to find the UnknownKey we are looking for, perhaps it makes it very slow too"""
         meta_list = []
@@ -201,7 +205,7 @@ class AddKeyMetaDataModelMixin:
         try:
             meta_list.append(
                 "OV Chipkaart valid "
-                + json.loads(self.meta_data_json).get("ovchipkaart", {})["validuntil"]
+                + self.meta_data_dict.get("ovchipkaart", {})["validuntil"]
             )
         except:
             pass
@@ -210,9 +214,7 @@ class AddKeyMetaDataModelMixin:
         # NFC Tag product version:
         #
         try:
-            meta_list.append(
-                "Tag " + json.loads(self.meta_data_json).get("tag", {})["product"]
-            )
+            meta_list.append("Tag " + meta_data_dict.get("tag", {})["product"])
         except:
             pass
 
@@ -246,7 +248,7 @@ class KeyMetaData(AddKeyMetaDataModelMixin, models.Model):
 
     def merge_meta_data_json(self, meta_data={}):
         """Merge new meta_data_json with existing self.meta_data_json."""
-        meta_data = {**json.loads(self.meta_data_json), **meta_data}
+        meta_data = {**self.meta_data_dict, **meta_data}
         self.meta_data_json = json.dumps(meta_data, indent=4)
 
 

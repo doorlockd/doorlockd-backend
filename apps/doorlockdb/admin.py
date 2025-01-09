@@ -291,10 +291,23 @@ class KeyAdmin(admin.ModelAdmin):
                 .form.fields["hwid"]
                 .widget.attrs.get("value", context["adminform"].form.instance.hwid)
             )
-            context["adminform"].form.instance.meta_data_json = KeyMetaData.objects.get(
-                hwid=hwid
-            ).meta_data_json
-        except:
+
+            # set meta_data_json:
+            key_meta_data = KeyMetaData.objects.get(hwid=hwid)
+            context["adminform"].form.instance.meta_data_json = (
+                key_meta_data.meta_data_json
+            )
+
+            # pre-fill descripttion with OV valid date:
+            if not context["adminform"].form.instance.description and isinstance(
+                key_meta_data.meta_data_dict.get("ovchipkaart"), dict
+            ):
+                context["adminform"].form.fields["description"].widget.attrs[
+                    "value"
+                ] = f"OV {key_meta_data.meta_data_dict.get('ovchipkaart').get('validuntil', '????')}"
+
+        except Exception as e:
+            print(f"unexpected exception: {e}")
             pass
 
         return super().render_change_form(request, context, *args, **kwargs)
