@@ -214,7 +214,7 @@ class AddKeyMetaDataModelMixin:
         # NFC Tag product version:
         #
         try:
-            meta_list.append("Tag " + meta_data_dict.get("tag", {})["product"])
+            meta_list.append("Tag " + self.meta_data_dict.get("tag", {})["product"])
         except:
             pass
 
