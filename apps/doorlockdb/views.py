@@ -144,3 +144,14 @@ def details_lock(request, lock_id):
 
     lock = get_object_or_404(Lock, pk=lock_id)
     return render(request, "details_lock.html", {"lock": lock})
+
+
+#  Websocket test:
+# @login_required(login_url="/admin/login/")
+def ws_test_u(request):
+    return render(request, "ws_test_u.html")
+
+
+# @login_required(login_url="/admin/login/")
+def ws_test_l(request):
+    return render(request, "ws_test_l.html")

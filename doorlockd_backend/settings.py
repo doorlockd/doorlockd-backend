@@ -30,14 +30,18 @@ SECRET_FILE = normpath(join(BASE_DIR, "run", "SECRET.key"))
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
-# DEBUG = True
+DEBUG = True
 
 # ALLOWED_HOSTS = ['127.0.0.1', 'localhost', 'testserver', '192.168.2.16']
 ALLOWED_HOSTS = ["*"]
+CSRF_TRUSTED_ORIGINS = ["https://localhost:4430", "https://192.168.2.40:4430"]
+# Daphne
+ASGI_APPLICATION = "doorlockd_backend.asgi.application"
 
 
 # Application definition
 INSTALLED_APPS = [
+    "daphne",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -83,7 +87,19 @@ TEMPLATES = [
     },
 ]
 
+
 WSGI_APPLICATION = "doorlockd_backend.wsgi.application"
+
+# Channels
+ASGI_APPLICATION = "doorlockd_backend.asgi.application"
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [("127.0.0.1", 6379)],
+        },
+    },
+}
 
 
 # Database

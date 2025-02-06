@@ -35,8 +35,8 @@ from django.utils.html import format_html
 # admin.site.register(LogKeyLastSeen)
 
 # set site header and title:
-admin.site.site_header = "Doorlockd Admin"
-admin.site.index_title = "Doorlockd administration."
+admin.site.site_header = "Doorlockd Admin CHANNEL-TEST !!!"
+admin.site.index_title = "Doorlockd administration. CHANNEL-TEST !!!"
 
 
 def linkify(field_name):

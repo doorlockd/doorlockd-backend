@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8"/>
+	<meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Mimmic User</title>
+	<style>
+		input[type=button] {
+		    height:4em;
+			width: 49%;
+		}
+
+		input[value=toggle_permanent_open] {
+		    height:4em;
+			width: 99%;
+		}
+		
+	</style>
+</head>
+<body>
+
+<div id="all_templates" style="display: none;">
+	<!-- Lock template:
+		lock_template = document.querySelector('#all_templates).querySelector('target_lock').cloneNode(true);
+		document.querySelector('#main_targets).appendChild(lock_template);
+	 -->
+	<form class="target_lock" action="javascript:void(0);"  data-to="not-set!" >
+		<fieldset disabled="disabled" >
+		    <legend>Lock: <span class="var_lockname">unknown lock</span> <span class="var_offline">[Offline]</span></legend>
+			state_open: <input type="checkbox" class="var_items" name="state_open" onclick="return(false);" > <br>
+			permanent_open_state: <input type="checkbox" name="permanent_open_state" class="var_items" onclick="return(false);"   > <br>
+			<br>
+
+			<input name="button_state_open" type="button" value="open_solenoid" class="event_button" data-event="open_solenoid" >
+			<input name="button_cancel_open_state" type="button" value="cancel_open_solenoid" class="event_button" data-event="cancel_open_solenoid" >
+			<br>
+			<br>
+			<input type="button" value="toggle_permanent_open" class="event_button" data-event="toggle_permanent_open"  >		
+		</fieldset>
+	</form>
+	
+</div>
+	<div id="main_targets">
+	</div>
+	<form action="javascript:void(0);"  data-to="Lock.6"  >
+		<fieldset disabled="disabled" >
+		    <legend>Lock: <span class="var_lockname">unknown lock</span> <span class="var_offline">[Offline]</span></legend>
+			state_open: <input type="checkbox" class="var_items" name="state_open" onclick="return(false);" > <br>
+			permanent_open_state: <input type="checkbox" name="permanent_open_state" class="var_items" onclick="return(false);"   > <br>
+			<br>
+
+			<input name="button_state_open" type="button" value="open_solenoid" class="event_button" data-event="open_solenoid" >
+			<input name="button_cancel_open_state" type="button" value="cancel_open_solenoid" class="event_button" data-event="cancel_open_solenoid" >
+			<br>
+			<br>
+			<input type="button" value="toggle_permanent_open" class="event_button" data-event="toggle_permanent_open"  >
+		</fieldset>
+	</form>
+
+	<form action="javascript:void(0);"  data-to="Lock.5"  >
+		<fieldset disabled="disabled" >
+		    <legend>Lock: <span class="var_lockname">unknown lock</span> <span class="var_offline">[Offline]</span></legend>
+			state_open: <input type="checkbox" class="var_items" name="state_open" onclick="return(false);" > <br>
+			permanent_open_state: <input type="checkbox" name="permanent_open_state" class="var_items" onclick="return(false);"   > <br>
+			<br>
+
+			<input name="button_state_open" type="button" value="open_solenoid" class="event_button" data-event="open_solenoid" >
+			<input name="button_cancel_open_state" type="button" value="cancel_open_solenoid" class="event_button" data-event="cancel_open_solenoid" >
+			<br>
+			<br>
+			<input type="button" value="toggle_permanent_open" class="event_button" data-event="toggle_permanent_open"  >
+		</fieldset>
+	</form>
+
+	<dialog id="dialog_reconnect">
+		<p>Lost websocket connection!</p>
+		<p id="dialog_ws_status"></p>
+		<form method="dialog">
+		<button id="dialog_reconnect_button" onClick="api.connect_ws(); this.disabled=true;" >reconnect</button>
+		</form>
+	</dialog>
+	
+	
+    <textarea id="chat-var" cols="100" rows="30">why?</textarea><br>
+    <script>
+		
+		class BaseTarget {
+			constructor(name, parent_ws, serverside_connect=false) {
+				this._name = name;
+				this._parent_ws = parent_ws;
+				
+				// type var data
+				this._var = {};
+				this._online = false;
+				
+				this.var_binding = {};
+				
+				
+				// add myself to parent_ws.targets
+				parent_ws.targets[ name ] = this;
+				
+				// ask serverside to get event from target
+				if (serverside_connect) {
+					this.serverside_connect();
+				}
+			}
+			
+			// comm ask to add myself:
+			serverside_connect() {
+				// this._parent_ws.ws.send(JSON.stringify({"type":"task", "to":"serverside", "task":"add_target", "add_target": "Lock.6"}));
+				this._parent_ws.ws.send(JSON.stringify({"type":"task", "to":"serverside", "task":"add_target", "add_target": this._name}));
+			}
+			
+			serverside_disconnect() {
+				// this._parent_ws.ws.send(JSON.stringify({"type":"task", "to":"serverside", "task":"remove_target", "remove_target": "Lock.6"}));
+				this._parent_ws.ws.send(JSON.stringify({"type":"task", "to":"serverside", "task":"remove_target", "remove_target": this._name}));
+			}
+			
+			
+			overview() {
+				return({'name': this._name, 'online': this._online, 'var': this._var});
+			}
+			
+			
+			varByName(key) {
+				return this._var[key];
+			}
+
+			do_callback(fname, data) {
+				fname = fname.replace('.', '_');
+				
+				if ( this[ fname ] instanceof Function ) {
+					this[ fname ](data);
+				} else {
+					console.log(`callback ignored: ${this.constructor.name}(${this._name}).${fname}() doesn't exist.'`);
+				}
+				
+			}
+			
+			send_event(event_name) {
+				this.send({'event': event_name});
+			}
+
+			send(data) {
+				data['to'] = this._name;
+				this._parent_ws.ws.send(JSON.stringify(data));
+			}
+
+			dispatch(data) {
+				// comm
+				if(data.type == 'comm') {
+					// comm=reset
+					if (data.comm == 'reset') {
+						this._var = {};
+						this.do_callback('on_comm_reset', data);
+					}
+					// comm=offline
+					if (data.comm == 'offline') {
+						this._online = false;
+						this.do_callback('on_comm_offline', data);
+					}
+					// comm=ready
+					if (data.comm == 'ready') {
+						this._online = true;
+						this.do_callback('on_comm_ready', data);
+					}
+				}
+				
+				// event
+				if (data.type == 'event') {
+					this.do_callback('on_event_' + data.event, data);
+				}
+				
+				// var
+				if (data.type == 'var') {
+					this._var = { ...this._var, ...data.var}
+					
+					// for each key in data.var
+					for (var key in data.var) {
+						this.do_callback('on_var_' + key, data);						
+					}
+				}
+				
+				if ('error' in data) {
+					console.log(`error received over ws: ${this.constructor.name}(${this._name}): ${data.error}`, data);
+				}
+			}
+		}
+		
+		
+		
+		//
+		class UserServerSideTarget extends BaseTarget {
+			on_comm_reset(data) {
+				update_overview();
+			}
+
+			on_comm_ready(data) {
+				new LockWSTarget('Lock.6', api, true); // will apear in api.targets['Lock.6']
+				new LockWSTarget('Lock.5', api, true); // will apear in api.targets['Lock.6']
+				api.close_dialog_reconnect();
+				update_overview();
+			}
+
+			on_comm_offline(data) {
+				update_overview();
+			}
+		}
+		
+		// 
+		// Doorlockd Lock device:
+		//
+		class LockWSTarget extends BaseTarget {
+
+			on_comm_reset(data) {
+				update_overview();
+				
+				// var binding:
+				console.log('var_binding:', this);
+				this.var_binding = {
+					"state_open": document.querySelector(`form[data-to="${this._name}"]`).querySelector('[name="state_open"]'),
+					"permanent_open_state": document.querySelector(`form[data-to="${this._name}"]`).querySelector('[name="permanent_open_state"]'),
+					"lockname": document.querySelector(`form[data-to="${this._name}"]`).querySelector('.var_lockname'),
+					"span_offline": document.querySelector(`form[data-to="${this._name}"]`).querySelector('.var_offline'),
+					"fieldset_offline": document.querySelector(`form[data-to="${this._name}"]`).querySelector('fieldset'),
+					"button_state_open": document.querySelector(`form[data-to="${this._name}"]`).querySelector('[name="button_state_open"]'),
+					"button_cancel_open_state": document.querySelector(`form[data-to="${this._name}"]`).querySelector('[name="button_cancel_open_state"]'),
+				};
+			}
+
+			on_comm_ready(data) {
+				// // enable Lock fieldset
+				// document.querySelector('#Fieldset_Lock_6').disabled = false;
+
+				// use var_bindings:
+				this.var_binding['fieldset_offline'].disabled = false;
+				this.var_binding['span_offline'].innerHTML = "";
+				
+				// // all places:
+				// Array.prototype.forEach.call(document.getElementsByClassName("var_offline"), function (el) {
+				// 	el.innerHTML = "";
+				// });
+				//
+				update_overview();
+			}
+
+			on_comm_offline(data) {
+				// document.querySelector('#Fieldset_Lock_6').disabled = true;
+
+				// use var_bindings:
+				this.var_binding['fieldset_offline'].disabled = true;
+				this.var_binding['span_offline'].innerHTML = "[Offline]";
+				//
+				// // all places:
+				// Array.prototype.forEach.call(document.getElementsByClassName("var_offline"), function (el) {
+				// 	el.innerHTML = " [Offline]";
+				// });
+				//
+				update_overview();
+			}
+			
+			update_buttons() {
+				var state_open = this._var.state_open;
+				var permanent_open_state = this._var.permanent_open_state;
+
+
+				this.var_binding['button_state_open'].disabled = state_open;
+				this.var_binding['button_cancel_open_state'].disabled = !state_open || permanent_open_state;
+				//
+				// document.querySelector('#button_state_open').disabled = state_open;
+				// document.querySelector('#button_cancel_open_state').disabled = !state_open || permanent_open_state;
+
+			}	
+			on_var_state_open(data) {
+				// use binding:
+				this.var_binding['state_open'].checked =  Boolean(data.var['state_open']);
+				
+				// update checkbox: state_open
+				// document.querySelector('#state_open').checked = Boolean(data.var['state_open']);
+				
+				this.update_buttons();
+				update_overview();
+			}
+			
+			on_var_permanent_open_state(data) {
+				// use binding:
+				this.var_binding['permanent_open_state'].checked =  Boolean(data.var['permanent_open_state']);
+				
+				// update checkbox: permanent_open_state
+				this.update_buttons();
+				// document.querySelector('#permanent_open_state').checked = Boolean(data.var['permanent_open_state']);
+				update_overview();
+			}
+			
+			on_var_allow_permanent_open(data) {
+				document.querySelector(`form[data-to="${this._name}"]`).querySelector('[value="toggle_permanent_open"]').disabled = !Boolean(data.var['allow_permanent_open']);
+			}
+			
+			on_var_lockname(data) {
+				// use binding:
+				this.var_binding['lockname'].innerHTML = String(data.var['lockname']);
+				
+				// // all places:
+				// Array.prototype.forEach.call(document.getElementsByClassName("var_lockname"), function (el) {
+				// 	el.innerHTML = String(data.var['lockname']);
+				// });
+				
+				
+				update_overview();
+			}			
+		}
+		
+		
+
+		class DoorlockWebsocketClient {
+	        ws = null;
+			ws_stay_online = 5;			
+			targets = {};
+
+			constructor(url) {
+				// add serverside
+				// new BaseTarget('serverside', this);
+				new UserServerSideTarget('serverside', this);
+				
+				// connect websocket:
+				this.connect_ws();
+			}
+
+			overview() {
+				var result = {}
+			    for (var t in this.targets) {
+			    	result[t]= this.targets[t].overview();
+			    }
+				return result;
+			}
+
+			targetByName(name) {
+				return this.targets[ name ];
+			}
+			
+			
+			connect_ws() {
+				this.ws_stay_online = 5;
+				this.startAndReconnectWebsocket();
+			}
+			
+			startAndReconnectWebsocket() {
+				// loop 5 times max.
+				if (!this.ws_stay_online) {
+					console.log('We do not startAndReconnectWebsocket, ws_stay_online = ', this.ws_stay_online);
+					this.update_dialog_ws_status("do you wan't to reconnect?");
+					this.enable_dialog_reconnect_button();
+					return(null);
+				}
+				this.ws = new WebSocket(
+					'wss://'
+					+ window.location.host
+					+ '/ws/webusersession.socket'
+				);
+
+				this.ws.onopen = function(e){
+					this.update_dialog_ws_status("websocket connected, waiting for event 'ready'");
+				}.bind(this);
+
+				this.ws.onclose = function(){
+					// connection closed, discard old websocket and create a new one in 5s
+					this.open_dialog_reconnect();
+					this.update_dialog_ws_status(`Failed, will retry in 500ms. (${this.ws_stay_online})`);
+					
+					// set all targets offline:
+					for (var target in this.targets) {
+						this.targets[target]._online = false;
+						this.targets[target].on_comm_offline({});
+					}
+					
+					setTimeout(function () {
+						this.ws_stay_online += -1;
+						this.startAndReconnectWebsocket()
+					}.bind(this), 500);
+				}.bind(this);
+
+		        this.ws.onmessage = function(e) {
+		            const data = JSON.parse(e.data);
+					console.log("new ws event: ", data);
+				
+					// dispatch to target object
+					if('from' in data) {
+						
+						if (data.from in this.targets) {
+							this.targets[ data.from ].dispatch(data);
+						} 
+					} else {
+						console.log("Unknown ws websocket e ('from' is missing): ", data);
+					}
+			
+		        }.bind(this);
+			}
+			
+			open_dialog_reconnect() {
+				document.querySelector('#dialog_reconnect').show();
+			}
+			
+			enable_dialog_reconnect_button() {
+				document.querySelector('#dialog_reconnect_button').disabled = false;
+			}
+			
+			close_dialog_reconnect() {
+				// on event ready..
+				document.querySelector('#dialog_reconnect').close();
+			}
+			
+			update_dialog_ws_status(msg) {
+				document.querySelector('#dialog_ws_status').innerHTML = msg;
+				console.log("websocket status: ", msg);
+			}
+		}
+
+		function add_lock_target(lock_id) {
+			// createa html:
+			lock_template = document.querySelector('#all_templates').querySelector('.target_lock').cloneNode(true);
+			lock_template.setAttribute('data-to', this._name);
+			document.querySelector('#main_targets').appendChild(lock_template);
+			
+			
+		}
+
+
+		var api = new DoorlockWebsocketClient();
+		document.addEventListener("DOMContentLoaded", (event) => {
+			// create hmtl:
+			// add_lock_target('Lock.5');
+			// add_lock_target('Lock.6');
+			
+			
+			
+
+			// event
+			Array.prototype.forEach.call(document.getElementsByClassName("event_button"),
+				function(eb) {
+					eb.onclick = function(e) {
+						let to =  e.target.form.getAttribute('data-to');
+						let event =  e.target.getAttribute('data-event');
+			            // ws.send(JSON.stringify({'to': to, 'event': event}));
+						api.targetByName(to).send_event(event);
+					}
+				}
+			);
+		});
+	
+
+
+
+		function update_overview() {
+			// update json textarea
+            document.querySelector('#chat-var').value = (JSON.stringify(api.overview(), null, 2) + '\n');
+		}
+
+
+
+		
+		
+		
+		// self executing function here
+		(function() {
+		   // your page initialization code here
+		   // the DOM will be available here
+
+
+
+			
+			// // var
+			// Array.prototype.forEach.call(document.getElementsByClassName("var_items"),
+			// 	function(eb) {
+			// 		eb.onchange = function(e) {
+			// 			var dict = {};
+			// 			dict[e.target.id] = e.target.checked;
+			// 			// console.log('var:', dict)
+			//             ws.send(JSON.stringify({'var': dict}));
+			// 		}
+			// 	}
+			// );
+		
+
+		})();
+    </script>
+</body>
+</html>

@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8"/>
+    <title>Mimmic Lock</title>
+</head>
+<body>
+	
+	state_open: <input type="checkbox" class="var_items" id="state_open" > <br>
+	permanent_open_state: <input type="checkbox" id="permanent_open_state" class="var_items" > <br>
+	lockname: <input type="text" id="lockname" value="Achterdeur" class="var_items" > <br>
+	
+    <textarea id="chat-log" cols="100" rows="20"></textarea><br>
+    <input id="chat-message-input" type="text" size="100"><br>
+    <input id="chat-message-submit" type="button" value="Send">
+    <!-- {{ room_name|json_script:"room-name" }} -->
+    <script>
+		
+		
+		function action_open_solenoid() {
+			if (! document.querySelector('#state_open').checked ){
+				document.querySelector('#state_open').click();
+			
+				setTimeout(() => {
+					if ( document.querySelector('#state_open').checked && !document.querySelector('#permanent_open_state').checked){
+						// document.querySelector('#state_open').checked = !document.querySelector('#permanent_open_state').checked;
+						document.querySelector('#state_open').click();
+					}
+				}, 3000);	
+			}	
+		}
+		
+		function action_cancel_open_solenoid() {
+			if ( document.querySelector('#state_open').checked && !document.querySelector('#permanent_open_state').checked){
+				document.querySelector('#state_open').click();
+	            // chatSocket.send(JSON.stringify({'event': 'door_close'}));
+			}
+		}
+		
+        const chatSocket = new WebSocket(
+            'wss://'
+            + window.location.host
+            + '/ws/lock.socket'
+        );
+
+		chatSocket.onopen = function(e){
+			console.log('websocket is opened event:', e);
+
+			// send all vars:
+			var dict = {};
+			Array.prototype.forEach.call(document.getElementsByClassName("var_items"), 
+				function(eb) {
+					if (eb.type == "checkbox") {
+						dict[eb.id] = eb.checked;
+											} 
+					if (eb.type == "text") {
+						dict[eb.id] = eb.value;
+					} 
+				}.bind(dict)
+			);
+	        chatSocket.send(JSON.stringify({'var': dict}));
+
+			// send we area ready
+	        chatSocket.send(JSON.stringify({'comm': 'ready'}));
+			
+		};
+
+        chatSocket.onmessage = function(e) {
+            const data = JSON.parse(e.data);
+			if('event' in data) {
+	            document.querySelector('#chat-log').value += ('event: ' + data.event + ' ('+ data.from + ')\n');
+				
+				if (data['event'] == 'open_solenoid') {
+					action_open_solenoid();
+				}
+				if (data['event'] == 'cancel_open_solenoid') {
+					action_cancel_open_solenoid();
+				}
+				if (data['event'] == 'toggle_permanent_open') {
+					document.querySelector('#permanent_open_state').click();
+					
+					if (document.querySelector('#permanent_open_state').checked != document.querySelector('#state_open').checked ){
+						document.querySelector('#state_open').click();
+					}
+					// document.querySelector('#state_open').checked = document.querySelector('#permanent_open_state').checked;
+				}
+				
+			}
+
+			// // testing setting var (not supported on real Locks):
+			// if('var' in data) {
+			// 	            document.querySelector('#chat-log').value += ('var: ' + JSON.stringify(data.var) + ' ('+ data.from + ')\n');
+			//
+			// 	if ('lockname' in data['var']) {
+			// 		// TODO
+			// 		document.querySelector('#lockname').value = data['var']['lockname'];
+			// 		document.querySelector('#lockname').dispatchEvent(new Event('change'));
+			// 	}
+			// }
+
+
+			// old:
+			if('message' in data) {
+	            document.querySelector('#chat-log').value += (data.message + '\n');				
+			}
+			
+			if('error' in data) {
+				console.log("received error over lock.socket: ", data);
+	            window.alert('error on lock.socket: ' + data.error);
+			}
+			
+        };
+
+        chatSocket.onclose = function(e) {
+            console.error('Chat socket closed unexpectedly');
+        };
+
+        document.querySelector('#chat-message-input').focus();
+        document.querySelector('#chat-message-input').onkeyup = function(e) {
+            if (e.key === 'Enter') {  // enter, return
+                document.querySelector('#chat-message-submit').click();
+            }
+        };
+
+        document.querySelector('#chat-message-submit').onclick = function(e) {
+            const messageInputDom = document.querySelector('#chat-message-input');
+            const message = messageInputDom.value;
+            chatSocket.send(JSON.stringify({
+                'message': message
+            }));
+            messageInputDom.value = '';
+        };
+		
+		
+
+		
+
+		
+		// self executing function here
+		(function() {
+		   // your page initialization code here
+		   // the DOM will be available here
+
+
+			// // event
+			// Array.prototype.forEach.call(document.getElementsByClassName("event_button"),
+			// 	function(eb) {
+			// 		eb.onclick = function(e) {
+			//             chatSocket.send(JSON.stringify({'event': e.target.value}));
+			// 		}
+			// 	}
+			// );
+			
+			// var
+			Array.prototype.forEach.call(document.getElementsByClassName("var_items"), 
+				function(eb) {
+					eb.onchange = function(e) {
+						var dict = {};
+						if (e.target.type == "checkbox") {
+							dict[e.target.id] = e.target.checked;							
+						} 
+						if (e.target.type == "text") {
+							dict[e.target.id] = e.target.value;							
+						} 
+						// console.log('var:', dict)
+			            chatSocket.send(JSON.stringify({'var': dict}));
+					}
+				}
+			);
+		
+
+		})();
+		
+
+    </script>
+</body>
+</html>

@@ -583,11 +583,27 @@ class Helpers:
         pass
 
     @classmethod
-    def AuthWithByClientSSL(cls, request):
+    def AuthWithByClientSSL(cls, request=None, scope=None):
+        # get http_x_ssl_cert from headers
         try:
-            client_cert = Lock.cleanup_certificate(
-                unquote(request.META["HTTP_X_SSL_CERT"])
+            # normal django request
+            if request:
+                http_x_ssl_cert = request.META["HTTP_X_SSL_CERT"]
+
+            # websocket scope
+            if scope:
+                http_x_ssl_cert = [
+                    v for (k, v) in scope["headers"] if k == b"x-ssl-cert"
+                ][0].decode()
+
+        except:
+            raise cls.ErrorClientSSLCert(
+                "no client certificate found (HTTP_X_SSL_CERT missing)"
             )
+
+        # lookup in db:
+        try:
+            client_cert = Lock.cleanup_certificate(unquote(http_x_ssl_cert))
         except ValidationError as e:
             raise cls.ErrorClientSSLCert(
                 "malformed client certificate (HTTP_X_SSL_CERT)."
@@ -913,6 +929,42 @@ class SyncLockKeys(models.Model):
         return f"{self.__class__.__name__}(lock={self.lock.name}, synchronized={self.synchronized}) "
 
 
+#
+# WebSocket related Models:
+#
+class LockWebsocketChannel(models.Model):
+    lock = models.OneToOneField("Lock", on_delete=models.CASCADE, primary_key=True)
+    channel_name = models.CharField(max_length=100, unique=True)
+    persistent_name = models.CharField(max_length=64, unique=True)
+
+    def save(self, *args, **kwargs):
+        if not self.persistent_name:
+            obj = self.lock
+            self.persistent_name = f"{obj.__class__.__name__}.{obj.pk}"
+
+        try:
+            result = super().save(*args, **kwargs)
+        except Exception as e:
+            raise e
+
+    async def send_button_lock(self, channel_layer, button_bool):
+        """for testing purpose only"""
+        await self.send_to_lock(
+            channel_layer, {"button": button_bool}, add_type="chat.message"
+        )
+
+    async def send_to_lock(self, channel_layer, data={}, add_type=None):
+        """for testing purpose only"""
+        if add_type:
+            data["type"] = add_type
+
+        # send dict to LockConsumer.{data['type']| tr . _ }
+        await channel_layer.send(self.channel_name, data)
+
+
+#
+# Singals:
+#
 from django.db.models.signals import post_save, post_delete, m2m_changed
 
 
