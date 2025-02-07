@@ -963,7 +963,36 @@ class LockWebsocketChannel(models.Model):
 
 
 #
-# Singals:
+# cleanup old LockWebsocketChannel on startup:
+#
+from django.core.checks import Info, register
+
+
+@register()
+def cleanup_LockWebsocketChannel(app_configs, **kwargs):
+    errors = []
+
+    # if database=None : no database allowed, cleanup ingored
+    if not kwargs.get("database", True):
+        return errors
+
+    # cleanup old LockWebsocketChannel on startup:
+    result, objects = LockWebsocketChannel.objects.all().delete()
+
+    if result:
+        errors.append(
+            Info(
+                f"{result} orphaned LockWebsocketChannel are deleted",
+                # hint="Solved. No actions required.",
+                obj=LockWebsocketChannel,
+                id="LockWebsocketChannel.cleanup.I001",
+            )
+        )
+    return errors
+
+
+#
+# Signals:
 #
 from django.db.models.signals import post_save, post_delete, m2m_changed
 
