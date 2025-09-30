@@ -27,9 +27,10 @@ class LockAuhClientSSL:
         return Helpers.AuthWithByClientSSL(request)
 
 
-api = NinjaAPI(auth=LockAuhClientSSL(), version="1.1.2", title="Doorlockd API")
+api = NinjaAPI(auth=LockAuhClientSSL(), version="1.1.3", title="Doorlockd API")
 #
 # Version Changelog:
+# api v 1.1.3: in /api/lock/sync.keys ("disabled": is now set to False instead of None, unless it's True)
 # api v 1.1.2: in /api/lock/log.unknownkeys + /api/lock/log.keys_last_seen ( "err_msgs": [] response)
 # api v 1.1.1: adds /api/key/merge.meta_data_json (add/merge meta_data_json for existing keys)
 # api v 1.1.0: meta_data_json added to /api/lock/log.unknownkeys,
@@ -118,10 +119,8 @@ def api_lock_sync_keys(request, input_data: SyncKeysInputSchema):
     # init response dict with lockname
     resp = dict(lockname=l.name)
 
-    # if lock disabled (client will update to empty keys list):
-    if not l.is_enabled:
-        # we just add an additional error mesage to the response
-        resp["disabled"] = True
+    # lock disabled value is inverted is_enabled value.
+    resp["disabled"] = not l.is_enabled
 
     # store keys_on_lock so we know the current config on the lock
     sync, created = SyncLockKeys.objects.get_or_create(lock=l)
