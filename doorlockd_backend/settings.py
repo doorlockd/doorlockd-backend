@@ -12,8 +12,7 @@ https://docs.djangoproject.com/en/4.0/ref/settings/
 
 from pathlib import Path
 from os.path import join, normpath, dirname
-from os import makedirs
-from time import tzname
+from os import environ, makedirs
 
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -121,8 +120,8 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = "en-us"
 
-# Use the server timezone
-TIME_ZONE = tzname[0]
+# Use the server timezone (empty string means server timezone)
+TIME_ZONE = environ.get("TIME_ZONE", "UTC")
 
 USE_I18N = True
 
