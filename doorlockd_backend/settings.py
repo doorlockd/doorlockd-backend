@@ -120,8 +120,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = "en-us"
 
-# Use the server timezone (empty string means server timezone)
-TIME_ZONE = environ.get("TIME_ZONE", "UTC")
+TIME_ZONE = "UTC"
 
 USE_I18N = True
 
